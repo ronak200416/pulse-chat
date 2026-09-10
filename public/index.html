@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Pulse Chat — Real-Time Cross-Platform Messaging</title>
-  <meta name="description" content="Ultra-fast, cross-platform real-time messaging on PC and mobile with SQLite, voice notes, media sharing, and instant phone connectivity.">
+  <meta name="description" content="Ultra-fast, cross-platform real-time messaging on PC and mobile with SQLite, voice notes, media sharing, and group management.">
   
   <!-- Google Fonts: Inter & Outfit -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -29,7 +29,7 @@
           <div class="live-dot pulse"></div>
         </div>
         <h1 class="auth-title">Welcome to <span class="gradient-text">Pulse Chat</span></h1>
-        <p class="auth-subtitle">Real-time messaging on PC & Mobile • Powered by SQLite</p>
+        <p class="auth-subtitle">Real-time messaging • Powered by SQLite</p>
       </div>
 
       <!-- Auth Tabs -->
@@ -121,7 +121,7 @@
       </form>
 
       <div class="auth-footer-notice">
-        🔒 Connected to your PC's SQLite database • Encrypted with bcrypt
+        🔒 Connected to SQLite database • Encrypted with bcrypt
       </div>
     </div>
   </div>
@@ -146,7 +146,7 @@
             <h2>Pulse<span class="gradient-text">Chat</span></h2>
             <div class="server-badge">
               <span class="status-indicator online"></span>
-              <span id="server-status-text">PC Server Live</span>
+              <span id="server-status-text">Connected</span>
             </div>
           </div>
         </div>
@@ -156,25 +156,13 @@
         </button>
       </div>
 
-      <!-- Quick Action Buttons -->
-      <div class="sidebar-actions">
-        <button class="action-tile-btn" id="btn-open-network" title="Connect Phone or Share Link">
-          <span class="tile-icon">📱</span>
-          <div class="tile-content">
-            <span class="tile-title">Connect Phone / Share</span>
-            <span class="tile-sub">QR Code & Public Link</span>
-          </div>
-          <span class="tile-badge">LIVE</span>
-        </button>
-      </div>
-
       <!-- Scrollable Navigation (Channels & DMs) -->
       <div class="sidebar-scrollable custom-scroll">
         <!-- Channels Section -->
         <div class="nav-section">
           <div class="nav-section-header">
-            <span class="nav-section-title">CHANNELS</span>
-            <button class="icon-btn-xs" id="btn-add-channel" title="Create Channel" aria-label="Create Channel">
+            <span class="nav-section-title">CHANNELS & GROUPS</span>
+            <button class="icon-btn-xs" id="btn-add-channel" title="Create Group" aria-label="Create Group">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
             </button>
           </div>
@@ -244,14 +232,19 @@
             <button id="btn-clear-search" class="clear-search-btn" style="display:none;">✕</button>
           </div>
 
+          <!-- Channel Action: Delete Group (for creator) -->
+          <button class="btn btn-sm btn-danger" id="btn-header-delete-group" style="display:none;" title="Delete this group">
+            <span>🗑️ Delete Group</span>
+          </button>
+
+          <!-- Channel Action: Leave Group (for members) -->
+          <button class="btn btn-sm btn-glass" id="btn-header-leave-group" style="display:none;" title="Leave this group">
+            <span>🚪 Leave Group</span>
+          </button>
+
           <!-- Sound FX Toggle -->
           <button class="icon-btn" id="btn-toggle-sound" title="Toggle Sound Notifications">
             <span id="sound-icon">🔊</span>
-          </button>
-
-          <!-- Share & Connect Button -->
-          <button class="btn btn-sm btn-glass" id="btn-header-share" title="Connect Phone or Friends">
-            <span>📱 Share / QR</span>
           </button>
 
           <!-- Toggle Right Sidebar (Members / Info) -->
@@ -275,11 +268,11 @@
         <div class="chat-welcome-banner" id="chat-welcome-banner">
           <div class="welcome-icon">💬</div>
           <h3 id="welcome-title">Welcome to #general!</h3>
-          <p id="welcome-desc">This is the beginning of the conversation. Messages are saved securely in your PC's SQLite database.</p>
+          <p id="welcome-desc">This is the beginning of the conversation. Messages are saved securely in SQLite.</p>
         </div>
 
         <div class="messages-feed" id="messages-feed">
-          <!-- Messages will be populated here -->
+          <!-- Messages populated dynamically -->
         </div>
 
         <div id="messages-bottom-anchor"></div>
@@ -324,29 +317,24 @@
 
         <!-- Standard Input Area -->
         <div class="composer-box" id="composer-box">
-          <!-- Attachment Dropzone / File Picker -->
           <input type="file" id="file-input" style="display:none;" accept="image/*,audio/*,video/*,.pdf,.zip,.txt,.doc,.docx,.json">
           
           <button class="composer-action-btn" id="btn-attachment" title="Attach file, image or clip">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
           </button>
 
-          <!-- Voice Record Mic Button -->
           <button class="composer-action-btn" id="btn-voice-record" title="Record Voice Note">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
           </button>
 
-          <!-- Textarea Composer -->
           <div class="textarea-wrapper">
             <textarea id="message-input" placeholder="Type a message... (Press Enter to send, Shift+Enter for newline)" rows="1" maxlength="4000"></textarea>
           </div>
 
-          <!-- Emoji Picker Trigger -->
           <button class="composer-action-btn" id="btn-emoji-trigger" title="Add Emoji">
             😊
           </button>
 
-          <!-- Send Button -->
           <button class="send-btn" id="btn-send-message" title="Send Message">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
           </button>
@@ -367,7 +355,7 @@
     <!-- RIGHT SIDEBAR (MEMBERS & DETAILS) -->
     <aside id="app-right-sidebar" class="app-right-sidebar">
       <div class="right-sidebar-header">
-        <h3>Details</h3>
+        <h3>Group Details</h3>
         <button class="icon-btn-xs" id="btn-close-right-sidebar">✕</button>
       </div>
 
@@ -378,13 +366,23 @@
             <div class="info-icon" id="info-room-icon">💬</div>
             <div>
               <h4 id="info-room-name">#general</h4>
-              <span class="text-muted" id="info-room-created">Created recently</span>
+              <span class="text-muted" id="info-room-created">Channel</span>
             </div>
           </div>
           <p class="info-card-desc" id="info-room-desc">Channel description</p>
+
+          <!-- Action buttons inside info card -->
+          <div class="group-mgmt-buttons" style="margin-top: 12px; display: flex; flex-direction: column; gap: 6px;">
+            <button class="btn btn-sm btn-danger btn-block" id="btn-sidebar-delete-group" style="display:none;">
+              🗑️ Delete Group
+            </button>
+            <button class="btn btn-sm btn-glass btn-block" id="btn-sidebar-leave-group" style="display:none;">
+              🚪 Leave Group
+            </button>
+          </div>
         </div>
 
-        <!-- Online in this room -->
+        <!-- Members in this room -->
         <div class="member-group">
           <span class="member-group-title">MEMBERS (<span id="member-count">0</span>)</span>
           <div class="member-list" id="room-member-list">
@@ -392,9 +390,9 @@
           </div>
         </div>
 
-        <!-- Server Health & Stats -->
+        <!-- Server Storage Stats -->
         <div class="server-stats-card">
-          <h4>💾 SQLite Storage</h4>
+          <h4>💾 SQLite Database</h4>
           <div class="stat-row">
             <span>Total Messages:</span>
             <strong id="stat-messages">0</strong>
@@ -414,91 +412,47 @@
 
   <!-- ================= MODALS ================= -->
 
-  <!-- 1. SHARE & CONNECT MODAL (QR CODE & PUBLIC LINK) -->
-  <div id="network-modal" class="modal-overlay">
-    <div class="modal-card network-card">
-      <div class="modal-header">
-        <div class="modal-header-title">
-          <span class="modal-badge-icon">📱</span>
-          <h3>Connect Phone & Worldwide Friends</h3>
-        </div>
-        <button class="icon-btn-xs modal-close-btn" id="btn-close-network-modal">✕</button>
-      </div>
-
-      <div class="modal-body">
-        <p class="network-intro">Your PC is running the live messaging server. Connect any device instantly:</p>
-
-        <!-- QR Code & Wi-Fi Access -->
-        <div class="network-section-card">
-          <div class="section-title-row">
-            <span class="tag-badge wifi-badge">📶 PHONE / TABLET (SAME WI-FI)</span>
-          </div>
-          <div class="qr-showcase">
-            <div class="qr-frame">
-              <img id="network-qr-img" src="" alt="Scan QR Code to join">
-            </div>
-            <div class="qr-details">
-              <p class="qr-instructions">Scan this QR code with your phone camera to open the chat app immediately!</p>
-              <div class="copy-url-bar">
-                <input type="text" id="lan-url-input" readonly value="Loading...">
-                <button class="btn btn-sm btn-primary" id="btn-copy-lan-url">Copy Link</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Worldwide Public Tunnel Access -->
-        <div class="network-section-card">
-          <div class="section-title-row">
-            <span class="tag-badge tunnel-badge">🌍 ANYONE IN THE WORLD (PUBLIC INTERNET)</span>
-          </div>
-          <p class="tunnel-desc">To let friends anywhere across the globe connect to your PC, start the public tunnel in a terminal:</p>
-          <div class="code-snippet-box">
-            <code>npm run tunnel</code>
-            <button class="btn btn-xs btn-glass" id="btn-copy-tunnel-cmd">Copy Command</button>
-          </div>
-          <p class="text-xs text-muted mt-2">✨ Gives you a free worldwide HTTPS link (e.g. <code>https://*.loca.lt</code>) that works on any phone or browser 24/7 as long as your PC is running.</p>
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button class="btn btn-glass" id="btn-done-network">Close</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 2. CREATE CHANNEL MODAL -->
+  <!-- 1. CREATE GROUP MODAL WITH MEMBER SELECTION -->
   <div id="create-channel-modal" class="modal-overlay">
-    <div class="modal-card">
+    <div class="modal-card" style="max-width: 480px;">
       <div class="modal-header">
-        <h3>Create New Channel</h3>
+        <h3>Create New Group / Channel</h3>
         <button class="icon-btn-xs modal-close-btn" id="btn-close-create-channel">✕</button>
       </div>
       <form id="create-channel-form">
         <div class="form-group">
-          <label for="new-channel-name">Channel Name</label>
+          <label for="new-channel-name">Group / Channel Name</label>
           <div class="input-icon-wrap">
             <span class="input-icon">#</span>
-            <input type="text" id="new-channel-name" placeholder="gaming-lounge" required maxlength="30">
+            <input type="text" id="new-channel-name" placeholder="team-project" required maxlength="30">
           </div>
         </div>
         <div class="form-group">
-          <label for="new-channel-icon">Channel Icon (Emoji)</label>
+          <label for="new-channel-icon">Group Icon (Emoji)</label>
           <input type="text" id="new-channel-icon" value="💬" maxlength="4" style="font-size:1.4rem; text-align:center; width: 60px;">
         </div>
         <div class="form-group">
           <label for="new-channel-desc">Description (Optional)</label>
-          <input type="text" id="new-channel-desc" placeholder="What is this channel about?">
+          <input type="text" id="new-channel-desc" placeholder="What is this group for?">
         </div>
+
+        <!-- Member Selection Checkbox List -->
+        <div class="form-group">
+          <label>Select Members to Add into this Group</label>
+          <div class="member-select-list custom-scroll" id="create-group-member-list">
+            <div class="text-xs text-muted" style="padding:8px;">Loading users...</div>
+          </div>
+        </div>
+
         <div class="modal-footer">
           <button type="button" class="btn btn-glass" id="btn-cancel-create-channel">Cancel</button>
-          <button type="submit" class="btn btn-primary">Create Channel</button>
+          <button type="submit" class="btn btn-primary">Create Group</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- 3. EDIT PROFILE MODAL -->
+  <!-- 2. EDIT PROFILE MODAL -->
   <div id="profile-modal" class="modal-overlay">
     <div class="modal-card">
       <div class="modal-header">
@@ -534,7 +488,7 @@
     </div>
   </div>
 
-  <!-- 4. IMAGE LIGHTBOX MODAL -->
+  <!-- 3. IMAGE LIGHTBOX MODAL -->
   <div id="lightbox-modal" class="lightbox-modal" style="display:none;">
     <div class="lightbox-backdrop" id="lightbox-backdrop"></div>
     <div class="lightbox-content">
@@ -551,7 +505,6 @@
   <script src="/socket.io/socket.io.js"></script>
   
   <!-- App JS Modules -->
-  <script src="js/network-modal.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/chat.js"></script>
   <script src="js/app.js"></script>

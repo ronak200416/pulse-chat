@@ -29,6 +29,7 @@ class DatabaseService {
 
     this.createTables();
     this.seedDefaultChannels();
+    this.purgeTestUsers(); // Clean up test bots
     this.save();
     return this;
   }
@@ -133,6 +134,24 @@ class DatabaseService {
     }
   }
 
+  purgeTestUsers() {
+    try {
+      // Find all test user IDs starting with guest_ or bob_
+      const testUsers = this.getAll("SELECT id FROM users WHERE username LIKE 'bob_%' OR username LIKE 'guest_%' OR display_name LIKE '%Bob The Builder%' OR display_name LIKE '%Alice Wonder%'");
+      if (testUsers.length > 0) {
+        const ids = testUsers.map(u => u.id);
+        const placeholders = ids.map(() => '?').join(',');
+        this.db.run(`DELETE FROM messages WHERE sender_id IN (${placeholders}) OR recipient_id IN (${placeholders})`, [...ids, ...ids]);
+        this.db.run(`DELETE FROM reactions WHERE user_id IN (${placeholders})`, ids);
+        this.db.run(`DELETE FROM channel_members WHERE user_id IN (${placeholders})`, ids);
+        this.db.run(`DELETE FROM users WHERE id IN (${placeholders})`, ids);
+        console.log(`🧹 Cleaned up ${testUsers.length} test bot users and their test messages from SQLite database.`);
+      }
+    } catch (e) {
+      console.warn('Test users cleanup notice:', e.message);
+    }
+  }
+
   // --- Helper SQL execution ---
   run(sql, params = []) {
     this.db.run(sql, params);
@@ -202,22 +221,121 @@ class DatabaseService {
   }
 
   // --- Channel Queries ---
-  getChannels() {
-    return this.getAll('SELECT * FROM channels ORDER BY created_at ASC');
+  getChannels(userId = null) {
+    if (!userId) {
+      return this.getAll('SELECT * FROM channels WHERE is_private = 0 ORDER BY created_at ASC');
+    }
+    // Return all public channels PLUS private channels where the user is member or creator
+    const sql = `
+      SELECT DISTINCT c.* 
+      FROM channels c
+      LEFT JOIN channel_members cm ON c.id = cm.channel_id
+      WHERE c.is_private = 0 OR c.created_by = ? OR cm.user_id = ?
+      ORDER BY c.created_at ASC
+    `;
+    return this.getAll(sql, [userId, userId]);
   }
 
   getChannelById(id) {
     return this.getOne('SELECT * FROM channels WHERE id = ?', [id]);
   }
 
-  createChannel({ id, name, description, icon, is_private = 0, created_by }) {
+  createChannel({ id, name, description, icon, is_private = 0, created_by, members = [] }) {
     const cleanName = name.toLowerCase().replace(/[^a-z0-9-_]/g, '-');
     const now = Date.now();
     this.run(
       'INSERT INTO channels (id, name, description, icon, is_private, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [id, cleanName, description || '', icon || '💬', is_private ? 1 : 0, created_by, now]
     );
+
+    // Add creator to channel_members
+    if (created_by && created_by !== 'system') {
+      this.run(
+        'INSERT OR IGNORE INTO channel_members (channel_id, user_id, joined_at) VALUES (?, ?, ?)',
+        [id, created_by, now]
+      );
+    }
+
+    // Add selected members
+    if (Array.isArray(members)) {
+      for (const memberId of members) {
+        if (memberId && memberId !== created_by) {
+          this.run(
+            'INSERT OR IGNORE INTO channel_members (channel_id, user_id, joined_at) VALUES (?, ?, ?)',
+            [id, memberId, now]
+          );
+        }
+      }
+    }
+
     return this.getChannelById(id);
+  }
+
+  deleteChannel(channelId, userId) {
+    const chan = this.getChannelById(channelId);
+    if (!chan) return { error: 'Channel not found' };
+
+    // Default channels cannot be deleted
+    const defaultIds = ['chan_general', 'chan_random', 'chan_tech', 'chan_media'];
+    if (defaultIds.includes(channelId)) {
+      return { error: 'Default channels cannot be deleted' };
+    }
+
+    if (chan.created_by !== userId) {
+      return { error: 'Only the group creator can delete this channel' };
+    }
+
+    // Delete associated messages, reactions, members, and channel
+    const msgIds = this.getAll('SELECT id FROM messages WHERE room_id = ?', [channelId]).map(m => m.id);
+    if (msgIds.length > 0) {
+      const placeholders = msgIds.map(() => '?').join(',');
+      this.db.run(`DELETE FROM reactions WHERE message_id IN (${placeholders})`, msgIds);
+    }
+    this.db.run('DELETE FROM messages WHERE room_id = ?', [channelId]);
+    this.db.run('DELETE FROM channel_members WHERE channel_id = ?', [channelId]);
+    this.db.run('DELETE FROM channels WHERE id = ?', [channelId]);
+    this.save();
+    return { success: true, channel: chan };
+  }
+
+  leaveChannel(channelId, userId) {
+    const chan = this.getChannelById(channelId);
+    if (!chan) return { error: 'Channel not found' };
+
+    const defaultIds = ['chan_general', 'chan_random', 'chan_tech', 'chan_media'];
+    if (defaultIds.includes(channelId)) {
+      return { error: 'Cannot leave default channels' };
+    }
+
+    this.run('DELETE FROM channel_members WHERE channel_id = ? AND user_id = ?', [channelId, userId]);
+    return { success: true };
+  }
+
+  removeChannelMember(channelId, targetUserId, creatorUserId) {
+    const chan = this.getChannelById(channelId);
+    if (!chan) return { error: 'Channel not found' };
+
+    if (chan.created_by !== creatorUserId) {
+      return { error: 'Only the group creator can remove members' };
+    }
+
+    if (targetUserId === creatorUserId) {
+      return { error: 'Creator cannot be removed from the group' };
+    }
+
+    this.run('DELETE FROM channel_members WHERE channel_id = ? AND user_id = ?', [channelId, targetUserId]);
+    return { success: true };
+  }
+
+  getChannelMembers(channelId) {
+    const sql = `
+      SELECT u.id, u.username, u.display_name, u.avatar_color, u.status, u.bio, cm.joined_at
+      FROM channel_members cm
+      JOIN users u ON cm.user_id = u.id
+      WHERE cm.channel_id = ?
+      ORDER BY u.display_name ASC
+    `;
+    return this.getAll(sql, [channelId]);
   }
 
   // --- Message Queries ---
@@ -277,7 +395,6 @@ class DatabaseService {
 
     const rows = this.getAll(sql, params).reverse();
     
-    // Attach reactions
     for (const row of rows) {
       row.reactions = this.getReactionsForMessage(row.id);
     }

@@ -8,7 +8,6 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
-const QRCode = require('qrcode');
 const db = require('./database');
 
 const PORT = process.env.PORT || 3000;
@@ -39,7 +38,7 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: '*',
-    methods: ['GET', 'POST']
+    methods: ['GET', 'POST', 'DELETE']
   },
   maxHttpBufferSize: 1e7 // 10MB
 });
@@ -56,7 +55,6 @@ function getLanIp() {
   const nets = os.networkInterfaces();
   for (const name of Object.keys(nets)) {
     for (const net of nets[name]) {
-      // Skip over non-IPv4 and internal (i.e. 127.0.0.1) addresses
       if (net.family === 'IPv4' && !net.internal) {
         return net.address;
       }
@@ -76,6 +74,19 @@ function authenticateToken(req, res, next) {
     req.user = user;
     next();
   });
+}
+
+function optionalToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (token) {
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+      if (!err) req.user = user;
+      next();
+    });
+  } else {
+    next();
+  }
 }
 
 // --- REST API ENDPOINTS ---
@@ -152,10 +163,9 @@ app.post('/api/auth/login', async (req, res) => {
 // 3. Auth: Quick Guest Mode
 app.post('/api/auth/guest', (req, res) => {
   try {
-    let { username, display_name, avatar_color } = req.body;
+    let { display_name, avatar_color } = req.body;
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    const cleanUsername = username ? username.trim().toLowerCase().replace(/[^a-z0-9]/g, '') : `guest_${randomSuffix}`;
-    const finalUsername = cleanUsername.startsWith('guest_') ? cleanUsername : `${cleanUsername}_${randomSuffix}`;
+    const cleanUsername = `guest_${randomSuffix}`;
     
     const colors = ['#6366f1', '#ec4899', '#8b5cf6', '#10b981', '#f59e0b', '#06b6d4', '#3b82f6'];
     const chosenColor = avatar_color || colors[Math.floor(Math.random() * colors.length)];
@@ -163,7 +173,7 @@ app.post('/api/auth/guest', (req, res) => {
 
     const user = db.createUser({
       id: userId,
-      username: finalUsername,
+      username: cleanUsername,
       display_name: display_name ? display_name.trim() : `Guest ${randomSuffix}`,
       avatar_color: chosenColor,
       bio: 'Visiting as a guest 🌟',
@@ -204,15 +214,16 @@ app.get('/api/users', (req, res) => {
 });
 
 // 7. Get Channels
-app.get('/api/channels', (req, res) => {
-  const channels = db.getChannels();
+app.get('/api/channels', optionalToken, (req, res) => {
+  const userId = req.user ? req.user.id : null;
+  const channels = db.getChannels(userId);
   res.json({ channels });
 });
 
-// 8. Create Channel
+// 8. Create Channel / Group with Member Selection
 app.post('/api/channels', authenticateToken, (req, res) => {
   try {
-    const { name, description, icon, is_private } = req.body;
+    const { name, description, icon, is_private, members } = req.body;
     if (!name || name.trim().length < 2) {
       return res.status(400).json({ error: 'Channel name is required (min 2 chars)' });
     }
@@ -224,7 +235,8 @@ app.post('/api/channels', authenticateToken, (req, res) => {
       description: description ? description.trim() : '',
       icon: icon || '💬',
       is_private: is_private ? 1 : 0,
-      created_by: req.user.id
+      created_by: req.user.id,
+      members: members || []
     });
 
     io.emit('channel_created', channel);
@@ -235,7 +247,56 @@ app.post('/api/channels', authenticateToken, (req, res) => {
   }
 });
 
-// 9. Get Room Messages
+// 9. Delete Channel / Group (Only by creator)
+app.delete('/api/channels/:id', authenticateToken, (req, res) => {
+  try {
+    const result = db.deleteChannel(req.params.id, req.user.id);
+    if (result.error) {
+      return res.status(400).json({ error: result.error });
+    }
+    io.emit('channel_deleted', { channelId: req.params.id });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete channel error:', err);
+    res.status(500).json({ error: 'Failed to delete channel' });
+  }
+});
+
+// 10. Leave Channel / Group (By member)
+app.post('/api/channels/:id/leave', authenticateToken, (req, res) => {
+  try {
+    const result = db.leaveChannel(req.params.id, req.user.id);
+    if (result.error) {
+      return res.status(400).json({ error: result.error });
+    }
+    io.emit('member_left', { channelId: req.params.id, userId: req.user.id });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to leave channel' });
+  }
+});
+
+// 11. Remove Member from Group (Only by Creator)
+app.delete('/api/channels/:channelId/members/:userId', authenticateToken, (req, res) => {
+  try {
+    const result = db.removeChannelMember(req.params.channelId, req.params.userId, req.user.id);
+    if (result.error) {
+      return res.status(400).json({ error: result.error });
+    }
+    io.emit('member_removed', { channelId: req.params.channelId, userId: req.params.userId });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to remove member' });
+  }
+});
+
+// 12. Get Channel Members
+app.get('/api/channels/:id/members', (req, res) => {
+  const members = db.getChannelMembers(req.params.id);
+  res.json({ members });
+});
+
+// 12. Get Room Messages
 app.get('/api/messages/:roomId', (req, res) => {
   const { roomId } = req.params;
   const limit = parseInt(req.query.limit) || 50;
@@ -244,7 +305,7 @@ app.get('/api/messages/:roomId', (req, res) => {
   res.json({ messages });
 });
 
-// 10. File & Audio Note Upload
+// 13. File & Audio Note Upload
 app.post('/api/upload', authenticateToken, upload.single('file'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
@@ -259,7 +320,7 @@ app.post('/api/upload', authenticateToken, upload.single('file'), (req, res) => 
   });
 });
 
-// 11. Search Messages
+// 14. Search Messages
 app.get('/api/messages-search', (req, res) => {
   const query = req.query.q || '';
   const roomId = req.query.roomId || null;
@@ -268,39 +329,34 @@ app.get('/api/messages-search', (req, res) => {
   res.json({ messages });
 });
 
-// 12. Direct Message Conversations
+// 15. Direct Message Conversations
 app.get('/api/dms', authenticateToken, (req, res) => {
   const dms = db.getDirectMessageRooms(req.user.id);
   res.json({ dms });
 });
 
-// 13. Network & Server Access Info
-app.get('/api/network-info', async (req, res) => {
+// 16. Server Stats
+app.get('/api/network-info', (req, res) => {
   try {
     const lanIp = getLanIp();
-    const localUrl = `http://localhost:${PORT}`;
-    const lanUrl = `http://${lanIp}:${PORT}`;
-    const qrCodeDataUrl = await QRCode.toDataURL(lanUrl, { margin: 1, width: 220 });
     const stats = db.getStats();
 
     res.json({
       port: PORT,
       lanIp,
-      localUrl,
-      lanUrl,
-      qrCode: qrCodeDataUrl,
+      localUrl: `http://localhost:${PORT}`,
       stats,
       uptime: process.uptime()
     });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to generate network info' });
+    res.status(500).json({ error: 'Failed to get server info' });
   }
 });
 
 // --- REAL-TIME SOCKET.IO ENGINE ---
 
-const onlineUsers = new Map(); // socket.id -> user_id
-const userSocketMap = new Map(); // user_id -> Set of socket.ids
+const onlineUsers = new Map();
+const userSocketMap = new Map();
 
 io.on('connection', (socket) => {
   let currentUser = null;
@@ -327,7 +383,6 @@ io.on('connection', (socket) => {
         last_seen: Date.now()
       });
 
-      // Send online users list to connecting client
       const activeIds = Array.from(userSocketMap.keys());
       socket.emit('online_users_list', activeIds);
     } catch (err) {
@@ -335,7 +390,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Join Room / Channel / DM
+  // Join Room
   socket.on('join_room', (roomId) => {
     socket.join(roomId);
   });
@@ -374,10 +429,8 @@ io.on('connection', (socket) => {
         created_at: Date.now()
       });
 
-      // Broadcast to room
       io.to(msgData.room_id).emit('new_message', newMsg);
 
-      // If DM, notify recipient specifically if they are online in other rooms
       if (msgData.room_type === 'direct' && msgData.recipient_id) {
         const recipientSockets = userSocketMap.get(msgData.recipient_id);
         if (recipientSockets) {
@@ -394,7 +447,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Typing indicator
+  // Typing
   socket.on('typing', ({ roomId, username }) => {
     socket.to(roomId).emit('user_typing', { roomId, username });
   });
@@ -447,13 +500,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Update Status
-  socket.on('set_status', (status) => {
-    if (!currentUser) return;
-    db.updateUserStatus(currentUser.id, status);
-    io.emit('user_presence', { userId: currentUser.id, status, last_seen: Date.now() });
-  });
-
   // Disconnect
   socket.on('disconnect', () => {
     const uId = onlineUsers.get(socket.id);
@@ -471,7 +517,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// Initialize database and start listening
 async function startServer() {
   await db.init();
 
@@ -481,16 +526,13 @@ async function startServer() {
     console.log('⚡  PULSE CHAT SERVER IS LIVE!  ⚡');
     console.log('==================================================');
     console.log(`🏠 Local URL:         http://localhost:${PORT}`);
-    console.log(`📱 Phone / LAN URL:   http://${lanIp}:${PORT}`);
-    console.log('🌐 Worldwide Access:  Run "npm run tunnel" for a public link');
+    console.log(`📱 LAN / Mobile:      http://${lanIp}:${PORT}`);
     console.log('💾 SQLite Database:   database.sqlite');
     console.log('==================================================\n');
   });
 }
 
-// Graceful shutdown
 process.on('SIGINT', () => {
-  console.log('\n🛑 Saving SQLite database and shutting down gracefully...');
   db.save();
   process.exit(0);
 });
