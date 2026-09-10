@@ -29,7 +29,6 @@ class DatabaseService {
 
     this.createTables();
     this.seedDefaultChannels();
-    this.purgeTestUsers(); // Clean up test bots
     this.save();
     return this;
   }
@@ -134,23 +133,7 @@ class DatabaseService {
     }
   }
 
-  purgeTestUsers() {
-    try {
-      // Find all test user IDs starting with guest_ or bob_
-      const testUsers = this.getAll("SELECT id FROM users WHERE username LIKE 'bob_%' OR username LIKE 'guest_%' OR display_name LIKE '%Bob The Builder%' OR display_name LIKE '%Alice Wonder%'");
-      if (testUsers.length > 0) {
-        const ids = testUsers.map(u => u.id);
-        const placeholders = ids.map(() => '?').join(',');
-        this.db.run(`DELETE FROM messages WHERE sender_id IN (${placeholders}) OR recipient_id IN (${placeholders})`, [...ids, ...ids]);
-        this.db.run(`DELETE FROM reactions WHERE user_id IN (${placeholders})`, ids);
-        this.db.run(`DELETE FROM channel_members WHERE user_id IN (${placeholders})`, ids);
-        this.db.run(`DELETE FROM users WHERE id IN (${placeholders})`, ids);
-        console.log(`🧹 Cleaned up ${testUsers.length} test bot users and their test messages from SQLite database.`);
-      }
-    } catch (e) {
-      console.warn('Test users cleanup notice:', e.message);
-    }
-  }
+
 
   // --- Helper SQL execution ---
   run(sql, params = []) {
