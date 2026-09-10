@@ -1,40 +1,59 @@
+require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const initSqlJs = require('sql.js');
+const { createClient } = require('@libsql/client');
 
 const DB_PATH = path.join(__dirname, 'database.sqlite');
+const TURSO_URL = process.env.TURSO_DATABASE_URL || process.env.TURSO_URL;
+const TURSO_TOKEN = process.env.TURSO_AUTH_TOKEN || process.env.TURSO_TOKEN;
 
 class DatabaseService {
   constructor() {
-    this.db = null;
+    this.isTurso = Boolean(TURSO_URL);
+    this.tursoClient = null;
+    this.db = null; // Local sql.js
     this.SQL = null;
   }
 
   async init() {
+    if (this.isTurso) {
+      console.log('⚡ Connecting to Turso Cloud SQLite database...');
+      this.tursoClient = createClient({
+        url: TURSO_URL,
+        authToken: TURSO_TOKEN
+      });
+      await this.createTablesTurso();
+      await this.seedDefaultChannelsTurso();
+      console.log('🌟 Connected to Turso Cloud SQLite with 100% PERMANENT cloud storage!');
+      return this;
+    }
+
+    // Local SQLite fallback
     this.SQL = await initSqlJs();
 
     if (fs.existsSync(DB_PATH)) {
       try {
         const fileBuffer = fs.readFileSync(DB_PATH);
         this.db = new this.SQL.Database(fileBuffer);
-        console.log('📦 Loaded existing SQLite database from database.sqlite');
+        console.log('📦 Loaded existing local SQLite database from database.sqlite');
       } catch (err) {
-        console.warn('⚠️ Could not load existing SQLite file, creating fresh database:', err.message);
+        console.warn('⚠️ Creating fresh local database:', err.message);
         this.db = new this.SQL.Database();
       }
     } else {
       this.db = new this.SQL.Database();
-      console.log('✨ Created new SQLite database in database.sqlite');
+      console.log('✨ Created new local SQLite database in database.sqlite');
     }
 
-    this.createTables();
-    this.seedDefaultChannels();
-    this.save();
+    this.createTablesLocal();
+    this.seedDefaultChannelsLocal();
+    this.saveLocal();
     return this;
   }
 
-  save() {
-    if (!this.db) return;
+  saveLocal() {
+    if (this.isTurso || !this.db) return;
     try {
       const data = this.db.export();
       const buffer = Buffer.from(data);
@@ -44,7 +63,91 @@ class DatabaseService {
     }
   }
 
-  createTables() {
+  // --- TURSO SCHEMA & SEED ---
+  async createTablesTurso() {
+    await this.tursoClient.executeMultiple(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        display_name TEXT NOT NULL,
+        password_hash TEXT,
+        avatar_color TEXT,
+        avatar_url TEXT,
+        bio TEXT,
+        status TEXT DEFAULT 'online',
+        is_guest INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        last_seen INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS channels (
+        id TEXT PRIMARY KEY,
+        name TEXT UNIQUE NOT NULL,
+        description TEXT,
+        icon TEXT,
+        is_private INTEGER DEFAULT 0,
+        created_by TEXT,
+        created_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS channel_members (
+        channel_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        joined_at INTEGER NOT NULL,
+        PRIMARY KEY (channel_id, user_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS messages (
+        id TEXT PRIMARY KEY,
+        room_type TEXT NOT NULL,
+        room_id TEXT NOT NULL,
+        sender_id TEXT NOT NULL,
+        recipient_id TEXT,
+        content TEXT NOT NULL,
+        message_type TEXT DEFAULT 'text',
+        file_url TEXT,
+        file_name TEXT,
+        file_size INTEGER,
+        reply_to_id TEXT,
+        reply_to_sender TEXT,
+        reply_to_content TEXT,
+        is_edited INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS reactions (
+        id TEXT PRIMARY KEY,
+        message_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        username TEXT NOT NULL,
+        emoji TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        UNIQUE (message_id, user_id, emoji)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_messages_room ON messages(room_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_reactions_msg ON reactions(message_id);
+    `);
+  }
+
+  async seedDefaultChannelsTurso() {
+    const defaults = [
+      { id: 'chan_general', name: 'general', description: 'The town square - hang out, chat and say hello!', icon: '💬' },
+      { id: 'chan_random', name: 'random', description: 'Memes, casual banter, fun links & laughs', icon: '⚡' },
+      { id: 'chan_tech', name: 'tech-lounge', description: 'Coding, apps, hardware, and tech ideas', icon: '🚀' },
+      { id: 'chan_media', name: 'music-and-media', description: 'Share clips, voice notes, tracks, and art', icon: '🎧' }
+    ];
+
+    for (const c of defaults) {
+      await this.tursoClient.execute({
+        sql: 'INSERT OR IGNORE INTO channels (id, name, description, icon, is_private, created_by, created_at) VALUES (?, ?, ?, ?, 0, "system", ?)',
+        args: [c.id, c.name, c.description, c.icon, Date.now()]
+      });
+    }
+  }
+
+  // --- LOCAL SCHEMA & SEED ---
+  createTablesLocal() {
     this.db.run(`
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
@@ -110,7 +213,7 @@ class DatabaseService {
     `);
   }
 
-  seedDefaultChannels() {
+  seedDefaultChannelsLocal() {
     const defaults = [
       { id: 'chan_general', name: 'general', description: 'The town square - hang out, chat and say hello!', icon: '💬' },
       { id: 'chan_random', name: 'random', description: 'Memes, casual banter, fun links & laughs', icon: '⚡' },
@@ -125,7 +228,7 @@ class DatabaseService {
       stmt.free();
 
       if (!exists) {
-        this.run(
+        this.db.run(
           'INSERT INTO channels (id, name, description, icon, is_private, created_by, created_at) VALUES (?, ?, ?, ?, 0, "system", ?)',
           [c.id, c.name, c.description, c.icon, Date.now()]
         );
@@ -133,82 +236,93 @@ class DatabaseService {
     }
   }
 
-
-
-  // --- Helper SQL execution ---
-  run(sql, params = []) {
-    this.db.run(sql, params);
-    this.save();
-  }
-
-  getOne(sql, params = []) {
-    const stmt = this.db.prepare(sql);
-    stmt.bind(params);
-    let row = null;
-    if (stmt.step()) {
-      row = stmt.getAsObject();
+  // --- QUERY EXECUTION (UNIFIED ASYNC) ---
+  async run(sql, params = []) {
+    if (this.isTurso) {
+      await this.tursoClient.execute({ sql, args: params });
+    } else {
+      this.db.run(sql, params);
+      this.saveLocal();
     }
-    stmt.free();
-    return row;
   }
 
-  getAll(sql, params = []) {
-    const stmt = this.db.prepare(sql);
-    stmt.bind(params);
-    const rows = [];
-    while (stmt.step()) {
-      rows.push(stmt.getAsObject());
+  async getOne(sql, params = []) {
+    if (this.isTurso) {
+      const res = await this.tursoClient.execute({ sql, args: params });
+      return res.rows.length > 0 ? res.rows[0] : null;
+    } else {
+      const stmt = this.db.prepare(sql);
+      stmt.bind(params);
+      let row = null;
+      if (stmt.step()) {
+        row = stmt.getAsObject();
+      }
+      stmt.free();
+      return row;
     }
-    stmt.free();
-    return rows;
   }
 
-  // --- User Queries ---
-  getUserById(id) {
-    return this.getOne('SELECT id, username, display_name, avatar_color, avatar_url, bio, status, is_guest, created_at, last_seen FROM users WHERE id = ?', [id]);
+  async getAll(sql, params = []) {
+    if (this.isTurso) {
+      const res = await this.tursoClient.execute({ sql, args: params });
+      return res.rows;
+    } else {
+      const stmt = this.db.prepare(sql);
+      stmt.bind(params);
+      const rows = [];
+      while (stmt.step()) {
+        rows.push(stmt.getAsObject());
+      }
+      stmt.free();
+      return rows;
+    }
   }
 
-  getUserWithPassword(username) {
-    return this.getOne('SELECT * FROM users WHERE LOWER(username) = LOWER(?)', [username]);
+  // --- USER QUERIES ---
+  async getUserById(id) {
+    return await this.getOne('SELECT id, username, display_name, avatar_color, avatar_url, bio, status, is_guest, created_at, last_seen FROM users WHERE id = ?', [id]);
   }
 
-  getUserByUsername(username) {
-    return this.getOne('SELECT id, username, display_name, avatar_color, avatar_url, bio, status, is_guest, created_at, last_seen FROM users WHERE LOWER(username) = LOWER(?)', [username]);
+  async getUserWithPassword(username) {
+    return await this.getOne('SELECT * FROM users WHERE LOWER(username) = LOWER(?)', [username]);
   }
 
-  createUser({ id, username, display_name, password_hash, avatar_color, avatar_url, bio, is_guest = 0 }) {
+  async getUserByUsername(username) {
+    return await this.getOne('SELECT id, username, display_name, avatar_color, avatar_url, bio, status, is_guest, created_at, last_seen FROM users WHERE LOWER(username) = LOWER(?)', [username]);
+  }
+
+  async createUser({ id, username, display_name, password_hash, avatar_color, avatar_url, bio, is_guest = 0 }) {
     const now = Date.now();
-    this.run(
+    await this.run(
       `INSERT INTO users (id, username, display_name, password_hash, avatar_color, avatar_url, bio, status, is_guest, created_at, last_seen)
        VALUES (?, ?, ?, ?, ?, ?, ?, 'online', ?, ?, ?)`,
       [id, username, display_name, password_hash || null, avatar_color || '#6366f1', avatar_url || null, bio || '', is_guest ? 1 : 0, now, now]
     );
-    return this.getUserById(id);
+    return await this.getUserById(id);
   }
 
-  updateUserStatus(id, status) {
+  async updateUserStatus(id, status) {
     const now = Date.now();
-    this.run('UPDATE users SET status = ?, last_seen = ? WHERE id = ?', [status, now, id]);
+    await this.run('UPDATE users SET status = ?, last_seen = ? WHERE id = ?', [status, now, id]);
   }
 
-  updateUserProfile(id, { display_name, bio, avatar_color, avatar_url }) {
-    this.run(
+  async updateUserProfile(id, { display_name, bio, avatar_color, avatar_url }) {
+    await this.run(
       'UPDATE users SET display_name = COALESCE(?, display_name), bio = COALESCE(?, bio), avatar_color = COALESCE(?, avatar_color), avatar_url = COALESCE(?, avatar_url) WHERE id = ?',
       [display_name, bio, avatar_color, avatar_url, id]
     );
-    return this.getUserById(id);
+    return await this.getUserById(id);
   }
 
-  getAllUsers() {
-    return this.getAll('SELECT id, username, display_name, avatar_color, avatar_url, bio, status, is_guest, created_at, last_seen FROM users ORDER BY last_seen DESC');
+  async getAllUsers() {
+    return await this.getAll('SELECT id, username, display_name, avatar_color, avatar_url, bio, status, is_guest, created_at, last_seen FROM users ORDER BY last_seen DESC');
   }
 
-  // --- Channel Queries ---
-  getChannels(userId = null) {
+  // --- CHANNEL QUERIES ---
+  async getChannels(userId = null) {
     if (!userId) {
-      return this.getAll('SELECT * FROM channels WHERE is_private = 0 ORDER BY created_at ASC');
+      return await this.getAll('SELECT * FROM channels WHERE is_private = 0 ORDER BY created_at ASC');
     }
-    // Return all public channels PLUS private channels where the user is member or creator
     const sql = `
       SELECT DISTINCT c.* 
       FROM channels c
@@ -216,34 +330,32 @@ class DatabaseService {
       WHERE c.is_private = 0 OR c.created_by = ? OR cm.user_id = ?
       ORDER BY c.created_at ASC
     `;
-    return this.getAll(sql, [userId, userId]);
+    return await this.getAll(sql, [userId, userId]);
   }
 
-  getChannelById(id) {
-    return this.getOne('SELECT * FROM channels WHERE id = ?', [id]);
+  async getChannelById(id) {
+    return await this.getOne('SELECT * FROM channels WHERE id = ?', [id]);
   }
 
-  createChannel({ id, name, description, icon, is_private = 0, created_by, members = [] }) {
+  async createChannel({ id, name, description, icon, is_private = 0, created_by, members = [] }) {
     const cleanName = name.toLowerCase().replace(/[^a-z0-9-_]/g, '-');
     const now = Date.now();
-    this.run(
+    await this.run(
       'INSERT INTO channels (id, name, description, icon, is_private, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [id, cleanName, description || '', icon || '💬', is_private ? 1 : 0, created_by, now]
     );
 
-    // Add creator to channel_members
     if (created_by && created_by !== 'system') {
-      this.run(
+      await this.run(
         'INSERT OR IGNORE INTO channel_members (channel_id, user_id, joined_at) VALUES (?, ?, ?)',
         [id, created_by, now]
       );
     }
 
-    // Add selected members
     if (Array.isArray(members)) {
       for (const memberId of members) {
         if (memberId && memberId !== created_by) {
-          this.run(
+          await this.run(
             'INSERT OR IGNORE INTO channel_members (channel_id, user_id, joined_at) VALUES (?, ?, ?)',
             [id, memberId, now]
           );
@@ -251,14 +363,13 @@ class DatabaseService {
       }
     }
 
-    return this.getChannelById(id);
+    return await this.getChannelById(id);
   }
 
-  deleteChannel(channelId, userId) {
-    const chan = this.getChannelById(channelId);
+  async deleteChannel(channelId, userId) {
+    const chan = await this.getChannelById(channelId);
     if (!chan) return { error: 'Channel not found' };
 
-    // Default channels cannot be deleted
     const defaultIds = ['chan_general', 'chan_random', 'chan_tech', 'chan_media'];
     if (defaultIds.includes(channelId)) {
       return { error: 'Default channels cannot be deleted' };
@@ -268,21 +379,18 @@ class DatabaseService {
       return { error: 'Only the group creator can delete this channel' };
     }
 
-    // Delete associated messages, reactions, members, and channel
-    const msgIds = this.getAll('SELECT id FROM messages WHERE room_id = ?', [channelId]).map(m => m.id);
-    if (msgIds.length > 0) {
-      const placeholders = msgIds.map(() => '?').join(',');
-      this.db.run(`DELETE FROM reactions WHERE message_id IN (${placeholders})`, msgIds);
+    const messages = await this.getAll('SELECT id FROM messages WHERE room_id = ?', [channelId]);
+    for (const m of messages) {
+      await this.run('DELETE FROM reactions WHERE message_id = ?', [m.id]);
     }
-    this.db.run('DELETE FROM messages WHERE room_id = ?', [channelId]);
-    this.db.run('DELETE FROM channel_members WHERE channel_id = ?', [channelId]);
-    this.db.run('DELETE FROM channels WHERE id = ?', [channelId]);
-    this.save();
+    await this.run('DELETE FROM messages WHERE room_id = ?', [channelId]);
+    await this.run('DELETE FROM channel_members WHERE channel_id = ?', [channelId]);
+    await this.run('DELETE FROM channels WHERE id = ?', [channelId]);
     return { success: true, channel: chan };
   }
 
-  leaveChannel(channelId, userId) {
-    const chan = this.getChannelById(channelId);
+  async leaveChannel(channelId, userId) {
+    const chan = await this.getChannelById(channelId);
     if (!chan) return { error: 'Channel not found' };
 
     const defaultIds = ['chan_general', 'chan_random', 'chan_tech', 'chan_media'];
@@ -290,12 +398,12 @@ class DatabaseService {
       return { error: 'Cannot leave default channels' };
     }
 
-    this.run('DELETE FROM channel_members WHERE channel_id = ? AND user_id = ?', [channelId, userId]);
+    await this.run('DELETE FROM channel_members WHERE channel_id = ? AND user_id = ?', [channelId, userId]);
     return { success: true };
   }
 
-  removeChannelMember(channelId, targetUserId, creatorUserId) {
-    const chan = this.getChannelById(channelId);
+  async removeChannelMember(channelId, targetUserId, creatorUserId) {
+    const chan = await this.getChannelById(channelId);
     if (!chan) return { error: 'Channel not found' };
 
     if (chan.created_by !== creatorUserId) {
@@ -306,11 +414,11 @@ class DatabaseService {
       return { error: 'Creator cannot be removed from the group' };
     }
 
-    this.run('DELETE FROM channel_members WHERE channel_id = ? AND user_id = ?', [channelId, targetUserId]);
+    await this.run('DELETE FROM channel_members WHERE channel_id = ? AND user_id = ?', [channelId, targetUserId]);
     return { success: true };
   }
 
-  getChannelMembers(channelId) {
+  async getChannelMembers(channelId) {
     const sql = `
       SELECT u.id, u.username, u.display_name, u.avatar_color, u.status, u.bio, cm.joined_at
       FROM channel_members cm
@@ -318,12 +426,12 @@ class DatabaseService {
       WHERE cm.channel_id = ?
       ORDER BY u.display_name ASC
     `;
-    return this.getAll(sql, [channelId]);
+    return await this.getAll(sql, [channelId]);
   }
 
-  // --- Message Queries ---
-  saveMessage(msg) {
-    this.run(
+  // --- MESSAGE QUERIES ---
+  async saveMessage(msg) {
+    await this.run(
       `INSERT INTO messages (id, room_type, room_id, sender_id, recipient_id, content, message_type, file_url, file_name, file_size, reply_to_id, reply_to_sender, reply_to_content, is_edited, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
       [
@@ -343,23 +451,23 @@ class DatabaseService {
         msg.created_at || Date.now()
       ]
     );
-    return this.getMessageWithSender(msg.id);
+    return await this.getMessageWithSender(msg.id);
   }
 
-  getMessageWithSender(id) {
-    const msg = this.getOne(`
+  async getMessageWithSender(id) {
+    const msg = await this.getOne(`
       SELECT m.*, u.username as sender_username, u.display_name as sender_display_name, u.avatar_color as sender_avatar_color, u.avatar_url as sender_avatar_url
       FROM messages m
       JOIN users u ON m.sender_id = u.id
       WHERE m.id = ?
     `, [id]);
     if (msg) {
-      msg.reactions = this.getReactionsForMessage(id);
+      msg.reactions = await this.getReactionsForMessage(id);
     }
     return msg;
   }
 
-  getMessages(roomId, limit = 50, beforeTimestamp = null) {
+  async getMessages(roomId, limit = 50, beforeTimestamp = null) {
     let sql = `
       SELECT m.*, u.username as sender_username, u.display_name as sender_display_name, u.avatar_color as sender_avatar_color, u.avatar_url as sender_avatar_url
       FROM messages m
@@ -376,34 +484,34 @@ class DatabaseService {
     sql += ' ORDER BY m.created_at DESC LIMIT ?';
     params.push(limit);
 
-    const rows = this.getAll(sql, params).reverse();
+    const rows = (await this.getAll(sql, params)).reverse();
     
     for (const row of rows) {
-      row.reactions = this.getReactionsForMessage(row.id);
+      row.reactions = await this.getReactionsForMessage(row.id);
     }
     return rows;
   }
 
-  deleteMessage(messageId, userId) {
-    const msg = this.getOne('SELECT * FROM messages WHERE id = ?', [messageId]);
+  async deleteMessage(messageId, userId) {
+    const msg = await this.getOne('SELECT * FROM messages WHERE id = ?', [messageId]);
     if (!msg) return null;
     if (msg.sender_id !== userId) return false;
 
-    this.run('DELETE FROM reactions WHERE message_id = ?', [messageId]);
-    this.run('DELETE FROM messages WHERE id = ?', [messageId]);
+    await this.run('DELETE FROM reactions WHERE message_id = ?', [messageId]);
+    await this.run('DELETE FROM messages WHERE id = ?', [messageId]);
     return true;
   }
 
-  editMessage(messageId, userId, newContent) {
-    const msg = this.getOne('SELECT * FROM messages WHERE id = ?', [messageId]);
+  async editMessage(messageId, userId, newContent) {
+    const msg = await this.getOne('SELECT * FROM messages WHERE id = ?', [messageId]);
     if (!msg) return null;
     if (msg.sender_id !== userId) return false;
 
-    this.run('UPDATE messages SET content = ?, is_edited = 1 WHERE id = ?', [newContent, messageId]);
-    return this.getMessageWithSender(messageId);
+    await this.run('UPDATE messages SET content = ?, is_edited = 1 WHERE id = ?', [newContent, messageId]);
+    return await this.getMessageWithSender(messageId);
   }
 
-  searchMessages(query, roomId = null) {
+  async searchMessages(query, roomId = null) {
     let sql = `
       SELECT m.*, u.username as sender_username, u.display_name as sender_display_name, u.avatar_color as sender_avatar_color
       FROM messages m
@@ -416,29 +524,29 @@ class DatabaseService {
       params.push(roomId);
     }
     sql += ' ORDER BY m.created_at DESC LIMIT 30';
-    return this.getAll(sql, params);
+    return await this.getAll(sql, params);
   }
 
-  // --- Reactions ---
-  addReaction({ id, message_id, user_id, username, emoji }) {
+  // --- REACTIONS ---
+  async addReaction({ id, message_id, user_id, username, emoji }) {
     try {
-      this.run(
+      await this.run(
         'INSERT OR REPLACE INTO reactions (id, message_id, user_id, username, emoji, created_at) VALUES (?, ?, ?, ?, ?, ?)',
         [id, message_id, user_id, username, emoji, Date.now()]
       );
-      return this.getReactionsForMessage(message_id);
+      return await this.getReactionsForMessage(message_id);
     } catch (err) {
-      return this.getReactionsForMessage(message_id);
+      return await this.getReactionsForMessage(message_id);
     }
   }
 
-  removeReaction(messageId, userId, emoji) {
-    this.run('DELETE FROM reactions WHERE message_id = ? AND user_id = ? AND emoji = ?', [messageId, userId, emoji]);
-    return this.getReactionsForMessage(messageId);
+  async removeReaction(messageId, userId, emoji) {
+    await this.run('DELETE FROM reactions WHERE message_id = ? AND user_id = ? AND emoji = ?', [messageId, userId, emoji]);
+    return await this.getReactionsForMessage(messageId);
   }
 
-  getReactionsForMessage(messageId) {
-    const rows = this.getAll('SELECT emoji, user_id, username FROM reactions WHERE message_id = ?', [messageId]);
+  async getReactionsForMessage(messageId) {
+    const rows = await this.getAll('SELECT emoji, user_id, username FROM reactions WHERE message_id = ?', [messageId]);
     const grouped = {};
     for (const r of rows) {
       if (!grouped[r.emoji]) {
@@ -450,7 +558,7 @@ class DatabaseService {
     return Object.values(grouped);
   }
 
-  getDirectMessageRooms(userId) {
+  async getDirectMessageRooms(userId) {
     const sql = `
       SELECT DISTINCT 
         CASE 
@@ -464,29 +572,32 @@ class DatabaseService {
       GROUP BY partner_id, room_id
       ORDER BY last_activity DESC
     `;
-    const rooms = this.getAll(sql, [userId, userId, userId]);
-    return rooms.map(r => {
-      const partner = this.getUserById(r.partner_id);
-      return {
+    const rooms = await this.getAll(sql, [userId, userId, userId]);
+    const result = [];
+    for (const r of rooms) {
+      const partner = await this.getUserById(r.partner_id);
+      result.push({
         room_id: r.room_id,
         partner: partner || { id: r.partner_id, username: 'Unknown User', status: 'offline' },
         last_activity: r.last_activity
-      };
-    });
+      });
+    }
+    return result;
   }
 
-  getStats() {
-    const userCount = this.getOne('SELECT COUNT(*) as count FROM users')?.count || 0;
-    const msgCount = this.getOne('SELECT COUNT(*) as count FROM messages')?.count || 0;
-    const chanCount = this.getOne('SELECT COUNT(*) as count FROM channels')?.count || 0;
+  async getStats() {
+    const uRow = await this.getOne('SELECT COUNT(*) as count FROM users');
+    const mRow = await this.getOne('SELECT COUNT(*) as count FROM messages');
+    const cRow = await this.getOne('SELECT COUNT(*) as count FROM channels');
     let dbSize = 0;
-    if (fs.existsSync(DB_PATH)) {
+    if (!this.isTurso && fs.existsSync(DB_PATH)) {
       dbSize = fs.statSync(DB_PATH).size;
     }
     return {
-      users: userCount,
-      messages: msgCount,
-      channels: chanCount,
+      storage: this.isTurso ? 'Turso Cloud SQLite' : 'Local SQLite',
+      users: uRow ? uRow.count : 0,
+      messages: mRow ? mRow.count : 0,
+      channels: cRow ? cRow.count : 0,
       db_size_kb: Math.round(dbSize / 1024)
     };
   }

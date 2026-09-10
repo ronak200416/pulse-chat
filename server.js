@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -104,7 +105,7 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ error: 'Username must be at least 3 characters' });
     }
 
-    const existing = db.getUserByUsername(cleanUsername);
+    const existing = await db.getUserByUsername(cleanUsername);
     if (existing) {
       return res.status(400).json({ error: 'Username already taken' });
     }
@@ -114,7 +115,7 @@ app.post('/api/auth/register', async (req, res) => {
     const colors = ['#6366f1', '#ec4899', '#8b5cf6', '#10b981', '#f59e0b', '#06b6d4', '#3b82f6'];
     const chosenColor = avatar_color || colors[Math.floor(Math.random() * colors.length)];
 
-    const user = db.createUser({
+    const user = await db.createUser({
       id: userId,
       username: cleanUsername,
       display_name: display_name ? display_name.trim() : cleanUsername,
@@ -141,7 +142,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     const cleanUsername = username.trim().toLowerCase();
-    const user = db.getUserWithPassword(cleanUsername);
+    const user = await db.getUserWithPassword(cleanUsername);
     if (!user || !user.password_hash) {
       return res.status(400).json({ error: 'Invalid username or password' });
     }
@@ -151,7 +152,7 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ error: 'Invalid username or password' });
     }
 
-    const safeUser = db.getUserById(user.id);
+    const safeUser = await db.getUserById(user.id);
     const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: safeUser });
   } catch (err) {
@@ -161,7 +162,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // 3. Auth: Quick Guest Mode
-app.post('/api/auth/guest', (req, res) => {
+app.post('/api/auth/guest', async (req, res) => {
   try {
     let { display_name, avatar_color } = req.body;
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
@@ -171,7 +172,7 @@ app.post('/api/auth/guest', (req, res) => {
     const chosenColor = avatar_color || colors[Math.floor(Math.random() * colors.length)];
     const userId = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
-    const user = db.createUser({
+    const user = await db.createUser({
       id: userId,
       username: cleanUsername,
       display_name: display_name ? display_name.trim() : `Guest ${randomSuffix}`,
@@ -189,17 +190,17 @@ app.post('/api/auth/guest', (req, res) => {
 });
 
 // 4. Auth: Get Current Profile
-app.get('/api/auth/me', authenticateToken, (req, res) => {
-  const user = db.getUserById(req.user.id);
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
+  const user = await db.getUserById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   res.json({ user });
 });
 
 // 5. Update Profile
-app.put('/api/users/profile', authenticateToken, (req, res) => {
+app.put('/api/users/profile', authenticateToken, async (req, res) => {
   try {
     const { display_name, bio, avatar_color, avatar_url } = req.body;
-    const updated = db.updateUserProfile(req.user.id, { display_name, bio, avatar_color, avatar_url });
+    const updated = await db.updateUserProfile(req.user.id, { display_name, bio, avatar_color, avatar_url });
     io.emit('user_profile_updated', updated);
     res.json({ user: updated });
   } catch (err) {
@@ -208,20 +209,20 @@ app.put('/api/users/profile', authenticateToken, (req, res) => {
 });
 
 // 6. Get All Users
-app.get('/api/users', (req, res) => {
-  const users = db.getAllUsers();
+app.get('/api/users', async (req, res) => {
+  const users = await db.getAllUsers();
   res.json({ users });
 });
 
 // 7. Get Channels
-app.get('/api/channels', optionalToken, (req, res) => {
+app.get('/api/channels', optionalToken, async (req, res) => {
   const userId = req.user ? req.user.id : null;
-  const channels = db.getChannels(userId);
+  const channels = await db.getChannels(userId);
   res.json({ channels });
 });
 
 // 8. Create Channel / Group with Member Selection
-app.post('/api/channels', authenticateToken, (req, res) => {
+app.post('/api/channels', authenticateToken, async (req, res) => {
   try {
     const { name, description, icon, is_private, members } = req.body;
     if (!name || name.trim().length < 2) {
@@ -229,7 +230,7 @@ app.post('/api/channels', authenticateToken, (req, res) => {
     }
 
     const chanId = `chan_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-    const channel = db.createChannel({
+    const channel = await db.createChannel({
       id: chanId,
       name: name.trim(),
       description: description ? description.trim() : '',
@@ -248,9 +249,9 @@ app.post('/api/channels', authenticateToken, (req, res) => {
 });
 
 // 9. Delete Channel / Group (Only by creator)
-app.delete('/api/channels/:id', authenticateToken, (req, res) => {
+app.delete('/api/channels/:id', authenticateToken, async (req, res) => {
   try {
-    const result = db.deleteChannel(req.params.id, req.user.id);
+    const result = await db.deleteChannel(req.params.id, req.user.id);
     if (result.error) {
       return res.status(400).json({ error: result.error });
     }
@@ -263,9 +264,9 @@ app.delete('/api/channels/:id', authenticateToken, (req, res) => {
 });
 
 // 10. Leave Channel / Group (By member)
-app.post('/api/channels/:id/leave', authenticateToken, (req, res) => {
+app.post('/api/channels/:id/leave', authenticateToken, async (req, res) => {
   try {
-    const result = db.leaveChannel(req.params.id, req.user.id);
+    const result = await db.leaveChannel(req.params.id, req.user.id);
     if (result.error) {
       return res.status(400).json({ error: result.error });
     }
@@ -277,9 +278,9 @@ app.post('/api/channels/:id/leave', authenticateToken, (req, res) => {
 });
 
 // 11. Remove Member from Group (Only by Creator)
-app.delete('/api/channels/:channelId/members/:userId', authenticateToken, (req, res) => {
+app.delete('/api/channels/:channelId/members/:userId', authenticateToken, async (req, res) => {
   try {
-    const result = db.removeChannelMember(req.params.channelId, req.params.userId, req.user.id);
+    const result = await db.removeChannelMember(req.params.channelId, req.params.userId, req.user.id);
     if (result.error) {
       return res.status(400).json({ error: result.error });
     }
@@ -291,21 +292,21 @@ app.delete('/api/channels/:channelId/members/:userId', authenticateToken, (req, 
 });
 
 // 12. Get Channel Members
-app.get('/api/channels/:id/members', (req, res) => {
-  const members = db.getChannelMembers(req.params.id);
+app.get('/api/channels/:id/members', async (req, res) => {
+  const members = await db.getChannelMembers(req.params.id);
   res.json({ members });
 });
 
-// 12. Get Room Messages
-app.get('/api/messages/:roomId', (req, res) => {
+// 13. Get Room Messages
+app.get('/api/messages/:roomId', async (req, res) => {
   const { roomId } = req.params;
   const limit = parseInt(req.query.limit) || 50;
   const before = req.query.before ? parseInt(req.query.before) : null;
-  const messages = db.getMessages(roomId, limit, before);
+  const messages = await db.getMessages(roomId, limit, before);
   res.json({ messages });
 });
 
-// 13. File & Audio Note Upload
+// 14. File & Audio Note Upload
 app.post('/api/upload', authenticateToken, upload.single('file'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
@@ -320,26 +321,26 @@ app.post('/api/upload', authenticateToken, upload.single('file'), (req, res) => 
   });
 });
 
-// 14. Search Messages
-app.get('/api/messages-search', (req, res) => {
+// 15. Search Messages
+app.get('/api/messages-search', async (req, res) => {
   const query = req.query.q || '';
   const roomId = req.query.roomId || null;
   if (!query.trim()) return res.json({ messages: [] });
-  const messages = db.searchMessages(query, roomId);
+  const messages = await db.searchMessages(query, roomId);
   res.json({ messages });
 });
 
-// 15. Direct Message Conversations
-app.get('/api/dms', authenticateToken, (req, res) => {
-  const dms = db.getDirectMessageRooms(req.user.id);
+// 16. Direct Message Conversations
+app.get('/api/dms', authenticateToken, async (req, res) => {
+  const dms = await db.getDirectMessageRooms(req.user.id);
   res.json({ dms });
 });
 
-// 16. Server Stats
-app.get('/api/network-info', (req, res) => {
+// 17. Server Stats
+app.get('/api/network-info', async (req, res) => {
   try {
     const lanIp = getLanIp();
-    const stats = db.getStats();
+    const stats = await db.getStats();
 
     res.json({
       port: PORT,
@@ -362,11 +363,11 @@ io.on('connection', (socket) => {
   let currentUser = null;
 
   // Authenticate socket
-  socket.on('authenticate', (token) => {
+  socket.on('authenticate', async (token) => {
     if (!token) return;
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
-      currentUser = db.getUserById(decoded.id);
+      currentUser = await db.getUserById(decoded.id);
       if (!currentUser) return;
 
       onlineUsers.set(socket.id, currentUser.id);
@@ -376,7 +377,7 @@ io.on('connection', (socket) => {
       }
       userSocketMap.get(currentUser.id).add(socket.id);
 
-      db.updateUserStatus(currentUser.id, 'online');
+      await db.updateUserStatus(currentUser.id, 'online');
       socket.broadcast.emit('user_presence', {
         userId: currentUser.id,
         status: 'online',
@@ -401,10 +402,10 @@ io.on('connection', (socket) => {
   });
 
   // Send Message
-  socket.on('send_message', (msgData, callback) => {
+  socket.on('send_message', async (msgData, callback) => {
     try {
       if (!currentUser && msgData.sender_id) {
-        currentUser = db.getUserById(msgData.sender_id);
+        currentUser = await db.getUserById(msgData.sender_id);
       }
       if (!currentUser) {
         if (callback) callback({ error: 'Unauthorized' });
@@ -412,7 +413,7 @@ io.on('connection', (socket) => {
       }
 
       const msgId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const newMsg = db.saveMessage({
+      const newMsg = await db.saveMessage({
         id: msgId,
         room_type: msgData.room_type || 'channel',
         room_id: msgData.room_id,
@@ -457,10 +458,10 @@ io.on('connection', (socket) => {
   });
 
   // Reactions
-  socket.on('add_reaction', ({ messageId, emoji, roomId }) => {
+  socket.on('add_reaction', async ({ messageId, emoji, roomId }) => {
     if (!currentUser) return;
     const reactionId = `rx_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-    const updatedReactions = db.addReaction({
+    const updatedReactions = await db.addReaction({
       id: reactionId,
       message_id: messageId,
       user_id: currentUser.id,
@@ -470,16 +471,16 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('reaction_updated', { messageId, reactions: updatedReactions });
   });
 
-  socket.on('remove_reaction', ({ messageId, emoji, roomId }) => {
+  socket.on('remove_reaction', async ({ messageId, emoji, roomId }) => {
     if (!currentUser) return;
-    const updatedReactions = db.removeReaction(messageId, currentUser.id, emoji);
+    const updatedReactions = await db.removeReaction(messageId, currentUser.id, emoji);
     io.to(roomId).emit('reaction_updated', { messageId, reactions: updatedReactions });
   });
 
   // Delete Message
-  socket.on('delete_message', ({ messageId, roomId }, callback) => {
+  socket.on('delete_message', async ({ messageId, roomId }, callback) => {
     if (!currentUser) return;
-    const ok = db.deleteMessage(messageId, currentUser.id);
+    const ok = await db.deleteMessage(messageId, currentUser.id);
     if (ok) {
       io.to(roomId).emit('message_deleted', { messageId, roomId });
       if (callback) callback({ success: true });
@@ -489,9 +490,9 @@ io.on('connection', (socket) => {
   });
 
   // Edit Message
-  socket.on('edit_message', ({ messageId, newContent, roomId }, callback) => {
+  socket.on('edit_message', async ({ messageId, newContent, roomId }, callback) => {
     if (!currentUser) return;
-    const updated = db.editMessage(messageId, currentUser.id, newContent);
+    const updated = await db.editMessage(messageId, currentUser.id, newContent);
     if (updated) {
       io.to(roomId).emit('message_edited', { message: updated, roomId });
       if (callback) callback({ success: true, message: updated });
@@ -501,7 +502,7 @@ io.on('connection', (socket) => {
   });
 
   // Disconnect
-  socket.on('disconnect', () => {
+  socket.on('disconnect', async () => {
     const uId = onlineUsers.get(socket.id);
     onlineUsers.delete(socket.id);
 
@@ -510,7 +511,7 @@ io.on('connection', (socket) => {
       userSockets.delete(socket.id);
       if (userSockets.size === 0) {
         userSocketMap.delete(uId);
-        db.updateUserStatus(uId, 'offline');
+        await db.updateUserStatus(uId, 'offline');
         io.emit('user_presence', { userId: uId, status: 'offline', last_seen: Date.now() });
       }
     }
@@ -527,18 +528,18 @@ async function startServer() {
     console.log('==================================================');
     console.log(`🏠 Local URL:         http://localhost:${PORT}`);
     console.log(`📱 LAN / Mobile:      http://${lanIp}:${PORT}`);
-    console.log('💾 SQLite Database:   database.sqlite');
+    console.log('💾 SQLite Database:   ' + (db.isTurso ? 'Turso Cloud SQLite (Permanent)' : 'Local database.sqlite'));
     console.log('==================================================\n');
   });
 }
 
 process.on('SIGINT', () => {
-  db.save();
+  if (db.saveLocal) db.saveLocal();
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-  db.save();
+  if (db.saveLocal) db.saveLocal();
   process.exit(0);
 });
 
