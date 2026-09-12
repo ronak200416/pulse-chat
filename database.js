@@ -6,9 +6,53 @@ const { createClient } = require('@libsql/client');
 
 const DB_PATH = path.join(__dirname, 'database.sqlite');
 
+function findEnvValue(patternRegex) {
+  for (const [key, value] of Object.entries(process.env)) {
+    const cleanKey = key.trim();
+    if (patternRegex.test(cleanKey) && value && value.trim()) {
+      return value.trim().replace(/^["']|["']$/g, '');
+    }
+  }
+  return '';
+}
+
 function getTursoCredentials() {
-  const url = (process.env.TURSO_DATABASE_URL || process.env.TURSO_URL || '').trim().replace(/^["']|["']$/g, '');
-  const token = (process.env.TURSO_AUTH_TOKEN || process.env.TURSO_TOKEN || '').trim().replace(/^["']|["']$/g, '');
+  // 1. Direct match or case-insensitive search for URL
+  let url = (process.env.TURSO_DATABASE_URL || process.env.TURSO_URL || '').trim().replace(/^["']|["']$/g, '');
+  if (!url) {
+    url = findEnvValue(/^(turso[_-]?(database[_-]?)?url|turso[_-]?db[_-]?url|turso[_-]?uri|database[_-]?url)$/i);
+  }
+  if (!url) {
+    url = findEnvValue(/turso.*url|url.*turso|libsql/i);
+  }
+  // Auto-detect if any env variable value contains a Turso URL
+  if (!url) {
+    for (const [k, v] of Object.entries(process.env)) {
+      if (typeof v === 'string' && (v.startsWith('libsql://') || v.includes('.turso.io'))) {
+        url = v.trim().replace(/^["']|["']$/g, '');
+        break;
+      }
+    }
+  }
+
+  // 2. Direct match or case-insensitive search for Token
+  let token = (process.env.TURSO_AUTH_TOKEN || process.env.TURSO_TOKEN || '').trim().replace(/^["']|["']$/g, '');
+  if (!token) {
+    token = findEnvValue(/^(turso[_-]?(auth[_-]?)?token|turso[_-]?auth|auth[_-]?token)$/i);
+  }
+  if (!token) {
+    token = findEnvValue(/turso.*token|token.*turso/i);
+  }
+  // Auto-detect if any env variable value contains the JWT auth token
+  if (!token) {
+    for (const [k, v] of Object.entries(process.env)) {
+      if (typeof v === 'string' && v.startsWith('eyJ') && v.length > 50 && k !== 'JWT_SECRET') {
+        token = v.trim().replace(/^["']|["']$/g, '');
+        break;
+      }
+    }
+  }
+
   return { url, token, isConfigured: Boolean(url && token) };
 }
 
@@ -849,12 +893,14 @@ class DatabaseService {
     if (!this.isTurso && fs.existsSync(DB_PATH)) {
       dbSize = fs.statSync(DB_PATH).size;
     }
+    const detectedEnvKeys = Object.keys(process.env).filter(k => /turso|database|libsql/i.test(k));
     return {
       storage: this.isTurso ? 'Turso Cloud SQLite' : 'Local SQLite',
       turso_configured: isConfigured,
       turso_url_set: Boolean(url),
       turso_token_set: Boolean(token),
       turso_error: this.tursoError || null,
+      detected_turso_keys: detectedEnvKeys,
       users: uRow ? uRow.count : 0,
       messages: mRow ? mRow.count : 0,
       channels: cRow ? cRow.count : 0,
