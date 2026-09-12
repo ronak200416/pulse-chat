@@ -29,44 +29,17 @@
           <div class="live-dot pulse"></div>
         </div>
         <h1 class="auth-title">Welcome to <span class="gradient-text">Pulse Chat</span></h1>
-        <p class="auth-subtitle">Real-time messaging • Powered by SQLite</p>
+        <p class="auth-subtitle">Fast, real-time cross-platform messaging</p>
       </div>
 
       <!-- Auth Tabs -->
       <div class="auth-tabs">
-        <button type="button" class="auth-tab-btn active" data-tab="guest-tab">⚡ Fast Guest</button>
-        <button type="button" class="auth-tab-btn" data-tab="login-tab">🔑 Log In</button>
-        <button type="button" class="auth-tab-btn" data-tab="register-tab">✨ Register</button>
+        <button type="button" class="auth-tab-btn active" data-tab="login-tab">🔑 Log In</button>
+        <button type="button" class="auth-tab-btn" data-tab="register-tab">✨ Create Account</button>
       </div>
 
-      <!-- Tab 1: Instant Guest -->
-      <form id="guest-form" class="auth-form-panel active">
-        <div class="form-group">
-          <label for="guest-name">Choose your Display Name</label>
-          <div class="input-icon-wrap">
-            <span class="input-icon">👤</span>
-            <input type="text" id="guest-name" placeholder="e.g. Alex, CyberNinja..." maxlength="24" required autocomplete="off">
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Pick Avatar Color</label>
-          <div class="color-picker-row" id="guest-color-picker">
-            <button type="button" class="color-dot active" data-color="#6366f1" style="background:#6366f1"></button>
-            <button type="button" class="color-dot" data-color="#ec4899" style="background:#ec4899"></button>
-            <button type="button" class="color-dot" data-color="#8b5cf6" style="background:#8b5cf6"></button>
-            <button type="button" class="color-dot" data-color="#10b981" style="background:#10b981"></button>
-            <button type="button" class="color-dot" data-color="#f59e0b" style="background:#f59e0b"></button>
-            <button type="button" class="color-dot" data-color="#06b6d4" style="background:#06b6d4"></button>
-          </div>
-        </div>
-        <button type="submit" class="btn btn-primary btn-block btn-lg" id="btn-guest-submit">
-          <span>Join Chat Immediately</span>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-        </button>
-      </form>
-
-      <!-- Tab 2: Login -->
-      <form id="login-form" class="auth-form-panel">
+      <!-- Tab 1: Login -->
+      <form id="login-form" class="auth-form-panel active">
         <div class="form-group">
           <label for="login-username">Username</label>
           <div class="input-icon-wrap">
@@ -83,45 +56,61 @@
         </div>
         <div id="login-error" class="error-msg"></div>
         <button type="submit" class="btn btn-primary btn-block btn-lg" id="btn-login-submit">
-          <span>Sign In</span>
+          <span>Sign In to Chat</span>
         </button>
       </form>
 
-      <!-- Tab 3: Register -->
+      <!-- Tab 2: Register -->
       <form id="register-form" class="auth-form-panel">
         <div class="form-group">
-          <label for="reg-username">Username</label>
+          <label for="reg-username">Choose Unique Username</label>
           <div class="input-icon-wrap">
             <span class="input-icon">@</span>
-            <input type="text" id="reg-username" placeholder="unique_handle" required autocomplete="username">
+            <input type="text" id="reg-username" placeholder="e.g. cyber_ninja, alex-99" required autocomplete="username" maxlength="30">
+          </div>
+          <!-- Live username check message -->
+          <div id="username-availability-status" class="input-feedback-msg">
+            Letters, numbers, underscores, and dashes (min 3 chars)
           </div>
         </div>
         <div class="form-group">
           <label for="reg-display-name">Display Name</label>
           <div class="input-icon-wrap">
             <span class="input-icon">👤</span>
-            <input type="text" id="reg-display-name" placeholder="How friends see you" required>
+            <input type="text" id="reg-display-name" placeholder="How friends see you" required maxlength="30">
           </div>
         </div>
         <div class="form-group">
           <label for="reg-password">Password</label>
           <div class="input-icon-wrap">
             <span class="input-icon">🔒</span>
-            <input type="password" id="reg-password" placeholder="At least 6 characters" required autocomplete="new-password">
+            <input type="password" id="reg-password" placeholder="At least 6 characters" required autocomplete="new-password" minlength="6">
+          </div>
+          <div class="input-hint-msg">Combination of letters, numbers & characters</div>
+        </div>
+        <div class="form-group">
+          <label>Pick Avatar Color</label>
+          <div class="color-picker-row" id="reg-color-picker">
+            <button type="button" class="color-dot active" data-color="#6366f1" style="background:#6366f1"></button>
+            <button type="button" class="color-dot" data-color="#ec4899" style="background:#ec4899"></button>
+            <button type="button" class="color-dot" data-color="#8b5cf6" style="background:#8b5cf6"></button>
+            <button type="button" class="color-dot" data-color="#10b981" style="background:#10b981"></button>
+            <button type="button" class="color-dot" data-color="#f59e0b" style="background:#f59e0b"></button>
+            <button type="button" class="color-dot" data-color="#06b6d4" style="background:#06b6d4"></button>
           </div>
         </div>
         <div class="form-group">
           <label for="reg-bio">Bio / Status (Optional)</label>
-          <input type="text" id="reg-bio" placeholder="e.g. Building cool things 🚀">
+          <input type="text" id="reg-bio" placeholder="e.g. Building cool things 🚀" maxlength="120">
         </div>
         <div id="reg-error" class="error-msg"></div>
         <button type="submit" class="btn btn-primary btn-block btn-lg" id="btn-reg-submit">
-          <span>Create Account</span>
+          <span>Create Account & Enter</span>
         </button>
       </form>
 
       <div class="auth-footer-notice">
-        🔒 Connected to SQLite database • Encrypted with bcrypt
+        🔒 Fast, encrypted & secure real-time messaging
       </div>
     </div>
   </div>
@@ -288,7 +277,7 @@
         <div class="chat-welcome-banner" id="chat-welcome-banner">
           <div class="welcome-icon">💬</div>
           <h3 id="welcome-title">Welcome to #general!</h3>
-          <p id="welcome-desc">This is the beginning of the conversation. Messages are saved securely in SQLite.</p>
+          <p id="welcome-desc">This is the beginning of the conversation.</p>
         </div>
 
         <div class="messages-feed" id="messages-feed">
@@ -407,23 +396,6 @@
           <span class="member-group-title">MEMBERS (<span id="member-count">0</span>)</span>
           <div class="member-list" id="room-member-list">
             <!-- Members list -->
-          </div>
-        </div>
-
-        <!-- Server Storage Stats -->
-        <div class="server-stats-card">
-          <h4>💾 SQLite Database</h4>
-          <div class="stat-row">
-            <span>Total Messages:</span>
-            <strong id="stat-messages">0</strong>
-          </div>
-          <div class="stat-row">
-            <span>Total Users:</span>
-            <strong id="stat-users">0</strong>
-          </div>
-          <div class="stat-row">
-            <span>Database Size:</span>
-            <strong id="stat-db-size">0 KB</strong>
           </div>
         </div>
       </div>

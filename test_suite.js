@@ -15,19 +15,52 @@ async function runTests() {
   console.log(`  ✓ QR Code Generated: ${netData.qrCode ? 'YES (Base64 Data URI)' : 'NO'}`);
   console.log(`  ✓ Initial Stats:`, netData.stats);
 
-  // Test 2: Create Fast Guest User 1 (Alice)
-  console.log('\nTest 2: Authenticating User 1 (Alice)...');
-  const user1Res = await fetch(`${SERVER_URL}/api/auth/guest`, {
+  // Test 2: Check Username Availability API
+  console.log('\nTest 2: Testing /api/auth/check-username endpoint...');
+  const aliceUsername = `alice_${Date.now().toString().slice(-4)}`;
+  const checkAvailRes = await fetch(`${SERVER_URL}/api/auth/check-username?username=${aliceUsername}`);
+  const checkAvailData = await checkAvailRes.json();
+  if (!checkAvailData.available) throw new Error('Expected username to be available');
+  console.log(`  ✓ Username "${aliceUsername}" is available.`);
+
+  // Test 3: Register User 1 (Alice) with Password
+  console.log('\nTest 3: Registering User 1 (Alice)...');
+  const user1Res = await fetch(`${SERVER_URL}/api/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ display_name: 'Alice Wonder', avatar_color: '#ec4899' })
+    body: JSON.stringify({
+      username: aliceUsername,
+      display_name: 'Alice Wonder',
+      password: 'alice_password_123',
+      bio: 'Exploring cyberspace 🌟',
+      avatar_color: '#ec4899'
+    })
   });
   const user1Data = await user1Res.json();
-  if (!user1Data.token) throw new Error('User 1 guest auth failed');
-  console.log(`  ✓ User 1 created: ${user1Data.user.display_name} (@${user1Data.user.username})`);
+  if (!user1Data.token) throw new Error('User 1 registration failed');
+  console.log(`  ✓ User 1 registered: ${user1Data.user.display_name} (@${user1Data.user.username})`);
 
-  // Test 3: Register Standard User 2 (Bob)
-  console.log('\nTest 3: Registering User 2 (Bob)...');
+  // Verify username is now marked as taken
+  const checkTakenRes = await fetch(`${SERVER_URL}/api/auth/check-username?username=${aliceUsername}`);
+  const checkTakenData = await checkTakenRes.json();
+  if (checkTakenData.available) throw new Error('Username should now be taken!');
+  console.log(`  ✓ Verified username "${aliceUsername}" is now marked as taken.`);
+
+  // Verify duplicate registration rejection
+  const dupRes = await fetch(`${SERVER_URL}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: aliceUsername,
+      display_name: 'Imposter Alice',
+      password: 'password123'
+    })
+  });
+  if (dupRes.status !== 400) throw new Error('Duplicate registration should have returned status 400');
+  console.log(`  ✓ Duplicate registration correctly rejected with 400.`);
+
+  // Test 4: Register Standard User 2 (Bob) and verify Login
+  console.log('\nTest 4: Registering User 2 (Bob)...');
   const bobUsername = `bob_${Date.now().toString().slice(-4)}`;
   const user2Res = await fetch(`${SERVER_URL}/api/auth/register`, {
     method: 'POST',
@@ -44,8 +77,8 @@ async function runTests() {
   if (!user2Data.token) throw new Error('User 2 registration failed');
   console.log(`  ✓ User 2 registered: ${user2Data.user.display_name} (@${user2Data.user.username})`);
 
-  // Test 4: Verify User 2 Login
-  console.log('\nTest 4: Logging in User 2...');
+  // Test 5: Verify User 2 Login with credentials
+  console.log('\nTest 5: Logging in User 2 with credentials...');
   const loginRes = await fetch(`${SERVER_URL}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -55,8 +88,8 @@ async function runTests() {
   if (!loginData.token) throw new Error('User 2 login failed');
   console.log(`  ✓ Login verified, token generated.`);
 
-  // Test 5: Channels Endpoint - Verify Only #general is default
-  console.log('\nTest 5: Fetching Default Channels...');
+  // Test 6: Channels Endpoint - Verify Only #general is default
+  console.log('\nTest 6: Fetching Default Channels...');
   const chanRes = await fetch(`${SERVER_URL}/api/channels`);
   const chanData = await chanRes.json();
   console.log(`  ✓ Found ${chanData.channels.length} default channels:`, chanData.channels.map(c => `#${c.name}`).join(', '));
@@ -65,8 +98,8 @@ async function runTests() {
   }
   const generalChan = chanData.channels[0];
 
-  // Test 6: Dynamic Group Creation and Membership Isolation
-  console.log('\nTest 6: Creating custom group with Alice and Bob...');
+  // Test 7: Dynamic Group Creation and Membership Isolation
+  console.log('\nTest 7: Creating custom group with Alice and Bob...');
   const groupCreateRes = await fetch(`${SERVER_URL}/api/channels`, {
     method: 'POST',
     headers: {
@@ -85,14 +118,21 @@ async function runTests() {
   const customGroup = groupCreateData.channel;
   console.log(`  ✓ Group created: #${customGroup.name} (ID: ${customGroup.id}) by Alice`);
 
-  // Create Charlie (User 3) who is NOT in the group
-  console.log('  Creating User 3 (Charlie)...');
-  const user3Res = await fetch(`${SERVER_URL}/api/auth/guest`, {
+  // Create Charlie (User 3) with full registration
+  console.log('  Registering User 3 (Charlie)...');
+  const charlieUsername = `charlie_${Date.now().toString().slice(-4)}`;
+  const user3Res = await fetch(`${SERVER_URL}/api/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ display_name: 'Charlie Stranger', avatar_color: '#3b82f6' })
+    body: JSON.stringify({
+      username: charlieUsername,
+      display_name: 'Charlie Stranger',
+      password: 'charlie_pass_123',
+      avatar_color: '#3b82f6'
+    })
   });
   const user3Data = await user3Res.json();
+  if (!user3Data.token) throw new Error('User 3 registration failed');
 
   // Check Alice's channels (Creator)
   const aliceChans = await (await fetch(`${SERVER_URL}/api/channels`, { headers: { 'Authorization': `Bearer ${user1Data.token}` } })).json();
@@ -110,8 +150,8 @@ async function runTests() {
   if (charlieChans.channels.some(c => c.id === customGroup.id)) throw new Error('Charlie can see group he was NOT invited to!');
   console.log(`  ✓ Membership isolation verified: Charlie does not see Alice & Bob\'s custom group!`);
 
-  // Test 7: Real-time WebSockets & Bidirectional Chat
-  console.log('\nTest 7: Connecting Alice & Bob via Socket.IO...');
+  // Test 8: Real-time WebSockets & Bidirectional Chat
+  console.log('\nTest 8: Connecting Alice & Bob via Socket.IO...');
   const socketAlice = io(SERVER_URL);
   const socketBob = io(SERVER_URL);
 
@@ -139,8 +179,8 @@ async function runTests() {
   await new Promise(r => setTimeout(r, 300));
   console.log(`  ✓ Both users joined #${generalChan.name}.`);
 
-  // Test 8: Send Message & Receive in Real Time
-  console.log('\nTest 8: Alice sending message to #general, Bob listening...');
+  // Test 9: Send Message & Receive in Real Time
+  console.log('\nTest 9: Alice sending message to #general, Bob listening...');
   const messagePromise = new Promise((resolve, reject) => {
     socketBob.on('new_message', (msg) => {
       if (msg.content.includes('Hello Bob!')) {
@@ -160,8 +200,8 @@ async function runTests() {
   const receivedMsg = await messagePromise;
   console.log(`  ✓ Bob received message in real time: "${receivedMsg.content}" (ID: ${receivedMsg.id})`);
 
-  // Test 9: Emoji Reactions in Real Time
-  console.log('\nTest 9: Bob reacting with 🔥 to Alice\'s message...');
+  // Test 10: Emoji Reactions in Real Time
+  console.log('\nTest 10: Bob reacting with 🔥 to Alice\'s message...');
   const reactionPromise = new Promise((resolve, reject) => {
     socketAlice.on('reaction_updated', ({ messageId, reactions }) => {
       if (messageId === receivedMsg.id) {
@@ -180,8 +220,8 @@ async function runTests() {
   const reactions = await reactionPromise;
   console.log(`  ✓ Alice received reaction update:`, reactions);
 
-  // Test 10: 1-on-1 Direct Messaging
-  console.log('\nTest 10: 1-on-1 Direct Messaging between Bob and Alice...');
+  // Test 11: 1-on-1 Direct Messaging
+  console.log('\nTest 11: 1-on-1 Direct Messaging between Bob and Alice...');
   const dmRoomId = [user1Data.user.id, user2Data.user.id].sort().join('_');
   socketAlice.emit('join_room', `dm_${dmRoomId}`);
   socketBob.emit('join_room', `dm_${dmRoomId}`);
@@ -207,20 +247,30 @@ async function runTests() {
   const receivedDm = await dmPromise;
   console.log(`  ✓ Alice received DM: "${receivedDm.content}"`);
 
-  // Test 11: Verify SQLite Database Persistence
-  console.log('\nTest 11: Verifying SQLite Database Persistence...');
+  // Test 12: Verify SQLite Database Persistence
+  console.log('\nTest 12: Verifying SQLite Database Persistence...');
   const historyRes = await fetch(`${SERVER_URL}/api/messages/${generalChan.id}`);
   const historyData = await historyRes.json();
   const foundMsg = historyData.messages.find(m => m.id === receivedMsg.id);
   if (!foundMsg) throw new Error('Message was not found in SQLite database!');
   console.log(`  ✓ Message confirmed saved in SQLite database! Total messages in room: ${historyData.messages.length}`);
 
-  // Test 12: Final Stats check
+  // Test 13: Final Stats check
   const finalStatsRes = await fetch(`${SERVER_URL}/api/network-info`);
   const finalStats = await finalStatsRes.json();
   console.log(`  ✓ Updated Database Stats:`, finalStats.stats);
 
-  // Cleanup
+  // Cleanup test channel
+  if (customGroup && customGroup.id) {
+    try {
+      await fetch(`${SERVER_URL}/api/channels/${customGroup.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${user1Data.token}` }
+      });
+    } catch (_) {}
+  }
+
+  // Cleanup sockets
   socketAlice.disconnect();
   socketBob.disconnect();
 

@@ -2,6 +2,8 @@
 const Auth = {
   token: localStorage.getItem('pulse_token') || null,
   user: null,
+  isUsernameAvailable: false,
+  checkUsernameTimeout: null,
 
   init() {
     this.modal = document.getElementById('auth-modal');
@@ -9,13 +11,14 @@ const Auth = {
     this.panels = document.querySelectorAll('.auth-form-panel');
 
     // Forms
-    this.guestForm = document.getElementById('guest-form');
     this.loginForm = document.getElementById('login-form');
     this.registerForm = document.getElementById('register-form');
 
-    // Color Pickers
-    this.guestColorPicker = document.getElementById('guest-color-picker');
-    this.selectedGuestColor = '#6366f1';
+    // Registration UI Elements
+    this.regUsernameInput = document.getElementById('reg-username');
+    this.usernameStatusEl = document.getElementById('username-availability-status');
+    this.regColorPicker = document.getElementById('reg-color-picker');
+    this.selectedRegColor = '#6366f1';
 
     // Profile Modal
     this.profileModal = document.getElementById('profile-modal');
@@ -40,14 +43,66 @@ const Auth = {
       });
     });
 
-    // Guest color picker
-    if (this.guestColorPicker) {
-      this.guestColorPicker.addEventListener('click', (e) => {
+    // Register avatar color picker
+    if (this.regColorPicker) {
+      this.regColorPicker.addEventListener('click', (e) => {
         if (e.target.classList.contains('color-dot')) {
-          this.guestColorPicker.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+          this.regColorPicker.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
           e.target.classList.add('active');
-          this.selectedGuestColor = e.target.getAttribute('data-color');
+          this.selectedRegColor = e.target.getAttribute('data-color');
         }
+      });
+    }
+
+    // Live Username Availability Check
+    if (this.regUsernameInput && this.usernameStatusEl) {
+      this.regUsernameInput.addEventListener('input', () => {
+        const username = this.regUsernameInput.value.trim().toLowerCase();
+        clearTimeout(this.checkUsernameTimeout);
+
+        if (!username) {
+          this.usernameStatusEl.className = 'input-feedback-msg';
+          this.usernameStatusEl.textContent = 'Letters, numbers, underscores, and dashes (min 3 chars)';
+          this.isUsernameAvailable = false;
+          return;
+        }
+
+        if (username.length < 3) {
+          this.usernameStatusEl.className = 'input-feedback-msg invalid';
+          this.usernameStatusEl.textContent = '⚠️ Username must be at least 3 characters';
+          this.isUsernameAvailable = false;
+          return;
+        }
+
+        const usernameRegex = /^[a-zA-Z0-9_.-]+$/;
+        if (!usernameRegex.test(username)) {
+          this.usernameStatusEl.className = 'input-feedback-msg invalid';
+          this.usernameStatusEl.textContent = '✕ Only letters, numbers, underscores, dashes, and dots';
+          this.isUsernameAvailable = false;
+          return;
+        }
+
+        this.usernameStatusEl.className = 'input-feedback-msg checking';
+        this.usernameStatusEl.textContent = '⏳ Checking availability...';
+
+        this.checkUsernameTimeout = setTimeout(async () => {
+          try {
+            const res = await fetch(`/api/auth/check-username?username=${encodeURIComponent(username)}`);
+            const data = await res.json();
+            if (data.available) {
+              this.usernameStatusEl.className = 'input-feedback-msg valid';
+              this.usernameStatusEl.textContent = '✓ Username is available!';
+              this.isUsernameAvailable = true;
+            } else {
+              this.usernameStatusEl.className = 'input-feedback-msg invalid';
+              this.usernameStatusEl.textContent = `✕ ${data.error || 'Username is already taken'}`;
+              this.isUsernameAvailable = false;
+            }
+          } catch (err) {
+            this.usernameStatusEl.className = 'input-feedback-msg';
+            this.usernameStatusEl.textContent = 'Could not verify username at the moment';
+          }
+        }, 300);
       });
     }
 
@@ -62,34 +117,6 @@ const Auth = {
       });
     }
 
-    // Submit Guest Form
-    if (this.guestForm) {
-      this.guestForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const nameInput = document.getElementById('guest-name');
-        const displayName = nameInput ? nameInput.value.trim() : '';
-        if (!displayName) return;
-
-        try {
-          const res = await fetch('/api/auth/guest', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              display_name: displayName,
-              avatar_color: this.selectedGuestColor
-            })
-          });
-          const data = await res.json();
-          if (data.token) {
-            this.handleAuthSuccess(data);
-          }
-        } catch (err) {
-          console.error('Guest auth error:', err);
-          App.showToast('Failed to connect as guest');
-        }
-      });
-    }
-
     // Submit Login Form
     if (this.loginForm) {
       this.loginForm.addEventListener('submit', async (e) => {
@@ -97,6 +124,9 @@ const Auth = {
         const username = document.getElementById('login-username').value.trim();
         const password = document.getElementById('login-password').value;
         const errEl = document.getElementById('login-error');
+        const submitBtn = document.getElementById('btn-login-submit');
+
+        if (submitBtn) submitBtn.disabled = true;
 
         try {
           const res = await fetch('/api/auth/login', {
@@ -113,8 +143,10 @@ const Auth = {
             this.handleAuthSuccess(data);
           }
         } catch (err) {
-          errEl.textContent = 'Server connection error';
+          errEl.textContent = 'Server connection error. Please try again.';
           errEl.classList.add('active');
+        } finally {
+          if (submitBtn) submitBtn.disabled = false;
         }
       });
     }
@@ -128,6 +160,21 @@ const Auth = {
         const password = document.getElementById('reg-password').value;
         const bio = document.getElementById('reg-bio').value.trim();
         const errEl = document.getElementById('reg-error');
+        const submitBtn = document.getElementById('btn-reg-submit');
+
+        if (username.length < 3) {
+          errEl.textContent = 'Username must be at least 3 characters long.';
+          errEl.classList.add('active');
+          return;
+        }
+
+        if (password.length < 6) {
+          errEl.textContent = 'Password must be at least 6 characters long.';
+          errEl.classList.add('active');
+          return;
+        }
+
+        if (submitBtn) submitBtn.disabled = true;
 
         try {
           const res = await fetch('/api/auth/register', {
@@ -135,10 +182,10 @@ const Auth = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               username,
-              display_name: displayName,
+              display_name: displayName || username,
               password,
               bio,
-              avatar_color: this.selectedGuestColor
+              avatar_color: this.selectedRegColor
             })
           });
           const data = await res.json();
@@ -150,8 +197,10 @@ const Auth = {
             this.handleAuthSuccess(data);
           }
         } catch (err) {
-          errEl.textContent = 'Server connection error';
+          errEl.textContent = 'Server connection error. Please try again.';
           errEl.classList.add('active');
+        } finally {
+          if (submitBtn) submitBtn.disabled = false;
         }
       });
     }

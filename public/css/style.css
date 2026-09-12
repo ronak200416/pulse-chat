@@ -435,6 +435,34 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
 }
 .error-msg.active { display: block; }
 
+.input-feedback-msg {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s;
+  min-height: 18px;
+}
+.input-feedback-msg.valid {
+  color: #34d399;
+  font-weight: 500;
+}
+.input-feedback-msg.invalid {
+  color: #f87171;
+  font-weight: 500;
+}
+.input-feedback-msg.checking {
+  color: #818cf8;
+}
+
+.input-hint-msg {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
 .auth-footer-notice {
   text-align: center;
   margin-top: 22px;

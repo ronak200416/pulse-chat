@@ -92,7 +92,40 @@ function optionalToken(req, res, next) {
 
 // --- REST API ENDPOINTS ---
 
-// 1. Auth: Register
+// 1. Auth: Check Username Availability in Real Time
+app.get('/api/auth/check-username', async (req, res) => {
+  try {
+    const raw = req.query.username || '';
+    const clean = raw.trim().toLowerCase();
+
+    if (!clean) {
+      return res.status(400).json({ available: false, error: 'Username cannot be empty' });
+    }
+    if (clean.length < 3) {
+      return res.status(400).json({ available: false, error: 'Username must be at least 3 characters' });
+    }
+    if (clean.length > 30) {
+      return res.status(400).json({ available: false, error: 'Username must be at most 30 characters' });
+    }
+
+    const usernameRegex = /^[a-zA-Z0-9_.-]+$/;
+    if (!usernameRegex.test(clean)) {
+      return res.status(400).json({ available: false, error: 'Only letters, numbers, underscores, dashes, and dots allowed' });
+    }
+
+    const existing = await db.getUserByUsername(clean);
+    if (existing) {
+      return res.json({ available: false, error: 'Username is already taken' });
+    }
+
+    res.json({ available: true, message: 'Username is available!' });
+  } catch (err) {
+    console.error('Check username error:', err);
+    res.status(500).json({ available: false, error: 'Server error checking username' });
+  }
+});
+
+// 2. Auth: Register
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { username, display_name, password, avatar_color, bio } = req.body;
@@ -104,10 +137,22 @@ app.post('/api/auth/register', async (req, res) => {
     if (cleanUsername.length < 3) {
       return res.status(400).json({ error: 'Username must be at least 3 characters' });
     }
+    if (cleanUsername.length > 30) {
+      return res.status(400).json({ error: 'Username must be at most 30 characters' });
+    }
+
+    const usernameRegex = /^[a-zA-Z0-9_.-]+$/;
+    if (!usernameRegex.test(cleanUsername)) {
+      return res.status(400).json({ error: 'Username can only contain letters, numbers, underscores, dashes, and dots' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+    }
 
     const existing = await db.getUserByUsername(cleanUsername);
     if (existing) {
-      return res.status(400).json({ error: 'Username already taken' });
+      return res.status(400).json({ error: 'Username is already taken. Please pick another one.' });
     }
 
     const password_hash = await bcrypt.hash(password, 10);
@@ -133,7 +178,7 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// 2. Auth: Login
+// 3. Auth: Login
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -158,34 +203,6 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Server error during login' });
-  }
-});
-
-// 3. Auth: Quick Guest Mode
-app.post('/api/auth/guest', async (req, res) => {
-  try {
-    let { display_name, avatar_color } = req.body;
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    const cleanUsername = `guest_${randomSuffix}`;
-    
-    const colors = ['#6366f1', '#ec4899', '#8b5cf6', '#10b981', '#f59e0b', '#06b6d4', '#3b82f6'];
-    const chosenColor = avatar_color || colors[Math.floor(Math.random() * colors.length)];
-    const userId = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-
-    const user = await db.createUser({
-      id: userId,
-      username: cleanUsername,
-      display_name: display_name ? display_name.trim() : `Guest ${randomSuffix}`,
-      avatar_color: chosenColor,
-      bio: 'Visiting as a guest 🌟',
-      is_guest: 1
-    });
-
-    const token = jwt.sign({ id: user.id, username: user.username, is_guest: true }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user });
-  } catch (err) {
-    console.error('Guest login error:', err);
-    res.status(500).json({ error: 'Server error during guest creation' });
   }
 });
 

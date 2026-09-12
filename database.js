@@ -25,6 +25,7 @@ class DatabaseService {
       });
       await this.createTablesTurso();
       await this.cleanupLegacyChannelsTurso();
+      await this.cleanupGuestAndBotAccountsTurso();
       await this.seedDefaultChannelsTurso();
       console.log('🌟 Connected to Turso Cloud SQLite with 100% PERMANENT cloud storage!');
       return this;
@@ -49,6 +50,7 @@ class DatabaseService {
 
     this.createTablesLocal();
     this.cleanupLegacyChannelsLocal();
+    this.cleanupGuestAndBotAccountsLocal();
     this.seedDefaultChannelsLocal();
     this.saveLocal();
     return this;
@@ -142,6 +144,47 @@ class DatabaseService {
       await this.run('DELETE FROM messages WHERE room_id = ?', [id]);
       await this.run('DELETE FROM channel_members WHERE channel_id = ?', [id]);
       await this.run('DELETE FROM channels WHERE id = ?', [id]);
+    }
+  }
+
+  async cleanupGuestAndBotAccountsTurso() {
+    try {
+      const guests = await this.getAll(`
+        SELECT id FROM users WHERE is_guest = 1 
+          OR username LIKE 'guest_%' 
+          OR username LIKE 'bot_%' 
+          OR id LIKE 'guest_%'
+          OR username LIKE 'alice_%'
+          OR username LIKE 'bob_%'
+          OR username LIKE 'charlie_%'
+          OR username LIKE '%_test_%'
+          OR username LIKE 'test_%'
+          OR display_name LIKE '%Tester%'
+          OR display_name LIKE '%Builder%'
+          OR display_name LIKE '%Stranger%'
+          OR display_name LIKE '%Wonder%'
+      `);
+      for (const g of guests) {
+        // Delete channels created by test user
+        const chs = await this.getAll('SELECT id FROM channels WHERE created_by = ?', [g.id]);
+        for (const ch of chs) {
+          if (ch.id !== 'chan_general') {
+            const msgs = await this.getAll('SELECT id FROM messages WHERE room_id = ?', [ch.id]);
+            for (const m of msgs) {
+              await this.run('DELETE FROM reactions WHERE message_id = ?', [m.id]);
+            }
+            await this.run('DELETE FROM messages WHERE room_id = ?', [ch.id]);
+            await this.run('DELETE FROM channel_members WHERE channel_id = ?', [ch.id]);
+            await this.run('DELETE FROM channels WHERE id = ?', [ch.id]);
+          }
+        }
+        await this.run('DELETE FROM reactions WHERE user_id = ?', [g.id]);
+        await this.run('DELETE FROM channel_members WHERE user_id = ?', [g.id]);
+        await this.run('DELETE FROM messages WHERE sender_id = ? OR recipient_id = ?', [g.id, g.id]);
+        await this.run('DELETE FROM users WHERE id = ?', [g.id]);
+      }
+    } catch (e) {
+      console.warn('Note cleaning guest/bot accounts in Turso:', e.message);
     }
   }
 
@@ -246,6 +289,67 @@ class DatabaseService {
       } catch (e) {
         console.warn(`Note cleaning legacy channel ${id}:`, e.message);
       }
+    }
+  }
+
+  cleanupGuestAndBotAccountsLocal() {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT id FROM users WHERE is_guest = 1 
+          OR username LIKE 'guest_%' 
+          OR username LIKE 'bot_%' 
+          OR id LIKE 'guest_%'
+          OR username LIKE 'alice_%'
+          OR username LIKE 'bob_%'
+          OR username LIKE 'charlie_%'
+          OR username LIKE '%_test_%'
+          OR username LIKE 'test_%'
+          OR display_name LIKE '%Tester%'
+          OR display_name LIKE '%Builder%'
+          OR display_name LIKE '%Stranger%'
+          OR display_name LIKE '%Wonder%'
+      `);
+      const guestIds = [];
+      while (stmt.step()) {
+        guestIds.push(stmt.getAsObject().id);
+      }
+      stmt.free();
+
+      for (const gId of guestIds) {
+        // Delete channels created by test user
+        const chStmt = this.db.prepare('SELECT id FROM channels WHERE created_by = :uid');
+        chStmt.bind({ ':uid': gId });
+        const chIds = [];
+        while (chStmt.step()) {
+          const ch = chStmt.getAsObject();
+          if (ch.id !== 'chan_general') chIds.push(ch.id);
+        }
+        chStmt.free();
+
+        for (const chId of chIds) {
+          const mStmt = this.db.prepare('SELECT id FROM messages WHERE room_id = :rid');
+          mStmt.bind({ ':rid': chId });
+          const mIds = [];
+          while (mStmt.step()) {
+            mIds.push(mStmt.getAsObject().id);
+          }
+          mStmt.free();
+
+          for (const mId of mIds) {
+            this.db.run('DELETE FROM reactions WHERE message_id = ?', [mId]);
+          }
+          this.db.run('DELETE FROM messages WHERE room_id = ?', [chId]);
+          this.db.run('DELETE FROM channel_members WHERE channel_id = ?', [chId]);
+          this.db.run('DELETE FROM channels WHERE id = ?', [chId]);
+        }
+
+        this.db.run('DELETE FROM reactions WHERE user_id = ?', [gId]);
+        this.db.run('DELETE FROM channel_members WHERE user_id = ?', [gId]);
+        this.db.run('DELETE FROM messages WHERE sender_id = ? OR recipient_id = ?', [gId, gId]);
+        this.db.run('DELETE FROM users WHERE id = ?', [gId]);
+      }
+    } catch (e) {
+      console.warn('Note cleaning guest/bot accounts in Local SQLite:', e.message);
     }
   }
 
