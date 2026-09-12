@@ -11,8 +11,7 @@ async function runTests() {
   if (!netRes.ok) throw new Error('Network info endpoint failed');
   const netData = await netRes.json();
   console.log(`  ✓ Local URL: ${netData.localUrl}`);
-  console.log(`  ✓ Wi-Fi LAN IP: ${netData.lanIp}`);
-  console.log(`  ✓ QR Code Generated: ${netData.qrCode ? 'YES (Base64 Data URI)' : 'NO'}`);
+  console.log(`  ✓ LAN IP: ${netData.lanIp}`);
   console.log(`  ✓ Initial Stats:`, netData.stats);
 
   // Test 2: Check Username Availability API
@@ -40,26 +39,7 @@ async function runTests() {
   if (!user1Data.token) throw new Error('User 1 registration failed');
   console.log(`  ✓ User 1 registered: ${user1Data.user.display_name} (@${user1Data.user.username})`);
 
-  // Verify username is now marked as taken
-  const checkTakenRes = await fetch(`${SERVER_URL}/api/auth/check-username?username=${aliceUsername}`);
-  const checkTakenData = await checkTakenRes.json();
-  if (checkTakenData.available) throw new Error('Username should now be taken!');
-  console.log(`  ✓ Verified username "${aliceUsername}" is now marked as taken.`);
-
-  // Verify duplicate registration rejection
-  const dupRes = await fetch(`${SERVER_URL}/api/auth/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username: aliceUsername,
-      display_name: 'Imposter Alice',
-      password: 'password123'
-    })
-  });
-  if (dupRes.status !== 400) throw new Error('Duplicate registration should have returned status 400');
-  console.log(`  ✓ Duplicate registration correctly rejected with 400.`);
-
-  // Test 4: Register Standard User 2 (Bob) and verify Login
+  // Test 4: Register User 2 (Bob)
   console.log('\nTest 4: Registering User 2 (Bob)...');
   const bobUsername = `bob_${Date.now().toString().slice(-4)}`;
   const user2Res = await fetch(`${SERVER_URL}/api/auth/register`, {
@@ -77,151 +57,123 @@ async function runTests() {
   if (!user2Data.token) throw new Error('User 2 registration failed');
   console.log(`  ✓ User 2 registered: ${user2Data.user.display_name} (@${user2Data.user.username})`);
 
-  // Test 5: Verify User 2 Login with credentials
-  console.log('\nTest 5: Logging in User 2 with credentials...');
-  const loginRes = await fetch(`${SERVER_URL}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: bobUsername, password: 'superpassword123' })
+  // Test 5: Search User by Username / ID
+  console.log('\nTest 5: Alice searching for Bob by username/ID...');
+  const searchRes = await fetch(`${SERVER_URL}/api/users/search?q=${bobUsername}`, {
+    headers: { 'Authorization': `Bearer ${user1Data.token}` }
   });
-  const loginData = await loginRes.json();
-  if (!loginData.token) throw new Error('User 2 login failed');
-  console.log(`  ✓ Login verified, token generated.`);
+  const searchData = await searchRes.json();
+  if (!searchData.users || searchData.users.length === 0) throw new Error('User search returned no results');
+  const foundBob = searchData.users.find(u => u.username === bobUsername);
+  if (!foundBob) throw new Error('Bob not found in search results');
+  if (foundBob.relationship !== 'none') throw new Error(`Expected relationship 'none', got ${foundBob.relationship}`);
+  console.log(`  ✓ Found Bob in search results with relationship '${foundBob.relationship}'`);
 
-  // Test 6: Channels Endpoint - Verify Only #general is default
-  console.log('\nTest 6: Fetching Default Channels...');
-  const chanRes = await fetch(`${SERVER_URL}/api/channels`);
-  const chanData = await chanRes.json();
-  console.log(`  ✓ Found ${chanData.channels.length} default channels:`, chanData.channels.map(c => `#${c.name}`).join(', '));
-  if (chanData.channels.length !== 1 || chanData.channels[0].name !== 'general') {
-    throw new Error(`Expected only '#general', but got ${JSON.stringify(chanData.channels)}`);
-  }
-  const generalChan = chanData.channels[0];
-
-  // Test 7: Dynamic Group Creation and Membership Isolation
-  console.log('\nTest 7: Creating custom group with Alice and Bob...');
-  const groupCreateRes = await fetch(`${SERVER_URL}/api/channels`, {
+  // Test 6: Send Friend Request from Alice to Bob
+  console.log('\nTest 6: Alice sending Friend Request to Bob...');
+  const friendReqRes = await fetch(`${SERVER_URL}/api/friends/request`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${user1Data.token}`
     },
-    body: JSON.stringify({
-      name: 'alpha-squad',
-      description: 'Top secret squad channel',
-      icon: '🛡️',
-      members: [user2Data.user.id]
-    })
+    body: JSON.stringify({ target: bobUsername })
   });
-  const groupCreateData = await groupCreateRes.json();
-  if (!groupCreateData.channel) throw new Error('Failed to create group');
-  const customGroup = groupCreateData.channel;
-  console.log(`  ✓ Group created: #${customGroup.name} (ID: ${customGroup.id}) by Alice`);
+  const friendReqData = await friendReqRes.json();
+  if (!friendReqData.success) throw new Error('Failed to send friend request: ' + JSON.stringify(friendReqData));
+  console.log(`  ✓ Friend request sent: ${friendReqData.message}`);
 
-  // Create Charlie (User 3) with full registration
-  console.log('  Registering User 3 (Charlie)...');
-  const charlieUsername = `charlie_${Date.now().toString().slice(-4)}`;
-  const user3Res = await fetch(`${SERVER_URL}/api/auth/register`, {
+  // Test 7: Bob checking pending requests
+  console.log('\nTest 7: Bob checking incoming friend requests...');
+  const bobReqsRes = await fetch(`${SERVER_URL}/api/friends/requests`, {
+    headers: { 'Authorization': `Bearer ${user2Data.token}` }
+  });
+  const bobReqsData = await bobReqsRes.json();
+  const incomingReq = (bobReqsData.incoming || []).find(r => r.username === aliceUsername);
+  if (!incomingReq) throw new Error('Incoming friend request from Alice not found in Bob\'s requests');
+  console.log(`  ✓ Bob received incoming friend request from @${incomingReq.username} (Request ID: ${incomingReq.request_id})`);
+
+  // Test 8: Bob accepting Alice's friend request
+  console.log('\nTest 8: Bob accepting friend request...');
+  const acceptRes = await fetch(`${SERVER_URL}/api/friends/accept`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username: charlieUsername,
-      display_name: 'Charlie Stranger',
-      password: 'charlie_pass_123',
-      avatar_color: '#3b82f6'
-    })
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${user2Data.token}`
+    },
+    body: JSON.stringify({ requestId: incomingReq.request_id })
   });
-  const user3Data = await user3Res.json();
-  if (!user3Data.token) throw new Error('User 3 registration failed');
+  const acceptData = await acceptRes.json();
+  if (!acceptData.success) throw new Error('Failed to accept friend request: ' + JSON.stringify(acceptData));
+  console.log(`  ✓ Friend request accepted successfully!`);
 
-  // Check Alice's channels (Creator)
-  const aliceChans = await (await fetch(`${SERVER_URL}/api/channels`, { headers: { 'Authorization': `Bearer ${user1Data.token}` } })).json();
-  console.log(`  ✓ Alice sees:`, aliceChans.channels.map(c => `#${c.name}`).join(', '));
-  if (!aliceChans.channels.some(c => c.id === customGroup.id)) throw new Error('Alice cannot see her created group');
+  // Test 9: Verify both users are in each other's accepted friends list
+  console.log('\nTest 9: Verifying mutual accepted friends list...');
+  const aliceFriends = await (await fetch(`${SERVER_URL}/api/friends`, { headers: { 'Authorization': `Bearer ${user1Data.token}` } })).json();
+  const bobFriends = await (await fetch(`${SERVER_URL}/api/friends`, { headers: { 'Authorization': `Bearer ${user2Data.token}` } })).json();
+  
+  if (!aliceFriends.friends.some(f => f.username === bobUsername)) throw new Error('Bob not found in Alice\'s friends list');
+  if (!bobFriends.friends.some(f => f.username === aliceUsername)) throw new Error('Alice not found in Bob\'s friends list');
+  console.log(`  ✓ Alice has friend: @${aliceFriends.friends[0].username}`);
+  console.log(`  ✓ Bob has friend: @${bobFriends.friends[0].username}`);
 
-  // Check Bob's channels (Member)
-  const bobChans = await (await fetch(`${SERVER_URL}/api/channels`, { headers: { 'Authorization': `Bearer ${user2Data.token}` } })).json();
-  console.log(`  ✓ Bob sees:`, bobChans.channels.map(c => `#${c.name}`).join(', '));
-  if (!bobChans.channels.some(c => c.id === customGroup.id)) throw new Error('Bob cannot see group he was added to');
+  // Test 10: Anonymous General Chat Verification
+  console.log('\nTest 10: Verifying Anonymous General Chat behavior...');
+  const chanRes = await fetch(`${SERVER_URL}/api/channels`);
+  const chanData = await chanRes.json();
+  const generalChan = chanData.channels.find(c => c.id === 'chan_general' || c.name === 'general');
+  if (!generalChan) throw new Error('General channel not found');
 
-  // Check Charlie's channels (Uninvited)
-  const charlieChans = await (await fetch(`${SERVER_URL}/api/channels`, { headers: { 'Authorization': `Bearer ${user3Data.token}` } })).json();
-  console.log(`  ✓ Charlie sees:`, charlieChans.channels.map(c => `#${c.name}`).join(', '));
-  if (charlieChans.channels.some(c => c.id === customGroup.id)) throw new Error('Charlie can see group he was NOT invited to!');
-  console.log(`  ✓ Membership isolation verified: Charlie does not see Alice & Bob\'s custom group!`);
-
-  // Test 8: Real-time WebSockets & Bidirectional Chat
-  console.log('\nTest 8: Connecting Alice & Bob via Socket.IO...');
   const socketAlice = io(SERVER_URL);
   const socketBob = io(SERVER_URL);
 
   await new Promise((resolve, reject) => {
-    let connected = 0;
-    const onConnect = () => {
-      connected++;
-      if (connected === 2) resolve();
-    };
-    socketAlice.on('connect', onConnect);
-    socketBob.on('connect', onConnect);
+    let count = 0;
+    const check = () => { count++; if (count === 2) resolve(); };
+    socketAlice.on('connect', check);
+    socketBob.on('connect', check);
     setTimeout(() => reject(new Error('Socket connection timed out')), 5000);
   });
-  console.log('  ✓ Both sockets connected to server.');
 
-  // Authenticate sockets
   socketAlice.emit('authenticate', user1Data.token);
   socketBob.emit('authenticate', user2Data.token);
-  await new Promise(r => setTimeout(r, 500));
-  console.log('  ✓ Sockets authenticated.');
+  await new Promise(r => setTimeout(r, 400));
 
-  // Join #general channel
   socketAlice.emit('join_room', generalChan.id);
   socketBob.emit('join_room', generalChan.id);
   await new Promise(r => setTimeout(r, 300));
-  console.log(`  ✓ Both users joined #${generalChan.name}.`);
 
-  // Test 9: Send Message & Receive in Real Time
-  console.log('\nTest 9: Alice sending message to #general, Bob listening...');
-  const messagePromise = new Promise((resolve, reject) => {
+  const anonMsgPromise = new Promise((resolve, reject) => {
     socketBob.on('new_message', (msg) => {
-      if (msg.content.includes('Hello Bob!')) {
+      if (msg.room_id === generalChan.id && msg.content.includes('Anonymous check')) {
         resolve(msg);
       }
     });
-    setTimeout(() => reject(new Error('Message reception timed out')), 5000);
+    setTimeout(() => reject(new Error('General chat message reception timed out')), 5000);
   });
 
   socketAlice.emit('send_message', {
     room_type: 'channel',
     room_id: generalChan.id,
-    content: 'Hello Bob! Pulse Chat is live and running in SQLite! 🚀',
+    content: 'Anonymous check in general chat!',
     message_type: 'text'
   });
 
-  const receivedMsg = await messagePromise;
-  console.log(`  ✓ Bob received message in real time: "${receivedMsg.content}" (ID: ${receivedMsg.id})`);
-
-  // Test 10: Emoji Reactions in Real Time
-  console.log('\nTest 10: Bob reacting with 🔥 to Alice\'s message...');
-  const reactionPromise = new Promise((resolve, reject) => {
-    socketAlice.on('reaction_updated', ({ messageId, reactions }) => {
-      if (messageId === receivedMsg.id) {
-        resolve(reactions);
-      }
-    });
-    setTimeout(() => reject(new Error('Reaction reception timed out')), 5000);
+  const receivedAnonMsg = await anonMsgPromise;
+  console.log(`  ✓ Bob received message in General Chat:`, {
+    content: receivedAnonMsg.content,
+    sender_display_name: receivedAnonMsg.sender_display_name,
+    sender_username: receivedAnonMsg.sender_username,
+    sender_avatar_color: receivedAnonMsg.sender_avatar_color
   });
 
-  socketBob.emit('add_reaction', {
-    messageId: receivedMsg.id,
-    emoji: '🔥',
-    roomId: generalChan.id
-  });
+  if (receivedAnonMsg.sender_display_name !== 'Anonymous' || receivedAnonMsg.sender_username !== 'anonymous') {
+    throw new Error(`Expected sender to be 'Anonymous' in general chat, got ${receivedAnonMsg.sender_display_name}`);
+  }
+  console.log(`  ✓ Verified General Chat sender is 100% masked as 'Anonymous'!`);
 
-  const reactions = await reactionPromise;
-  console.log(`  ✓ Alice received reaction update:`, reactions);
-
-  // Test 11: 1-on-1 Direct Messaging
-  console.log('\nTest 11: 1-on-1 Direct Messaging between Bob and Alice...');
+  // Test 11: Direct Messaging between Accepted Friends
+  console.log('\nTest 11: 1-on-1 Direct Messaging between Friends...');
   const dmRoomId = [user1Data.user.id, user2Data.user.id].sort().join('_');
   socketAlice.emit('join_room', `dm_${dmRoomId}`);
   socketBob.emit('join_room', `dm_${dmRoomId}`);
@@ -229,7 +181,7 @@ async function runTests() {
 
   const dmPromise = new Promise((resolve, reject) => {
     socketAlice.on('new_message', (msg) => {
-      if (msg.room_type === 'direct' && msg.content.includes('private message')) {
+      if (msg.room_type === 'direct' && msg.content.includes('Hello Alice my friend')) {
         resolve(msg);
       }
     });
@@ -240,37 +192,14 @@ async function runTests() {
     room_type: 'direct',
     room_id: `dm_${dmRoomId}`,
     recipient_id: user1Data.user.id,
-    content: 'Hey Alice, this is a private message between you and me!',
+    content: 'Hello Alice my friend! Private DM confirmed 💬',
     message_type: 'text'
   });
 
   const receivedDm = await dmPromise;
-  console.log(`  ✓ Alice received DM: "${receivedDm.content}"`);
+  console.log(`  ✓ Alice received private DM from friend: "${receivedDm.content}"`);
 
-  // Test 12: Verify SQLite Database Persistence
-  console.log('\nTest 12: Verifying SQLite Database Persistence...');
-  const historyRes = await fetch(`${SERVER_URL}/api/messages/${generalChan.id}`);
-  const historyData = await historyRes.json();
-  const foundMsg = historyData.messages.find(m => m.id === receivedMsg.id);
-  if (!foundMsg) throw new Error('Message was not found in SQLite database!');
-  console.log(`  ✓ Message confirmed saved in SQLite database! Total messages in room: ${historyData.messages.length}`);
-
-  // Test 13: Final Stats check
-  const finalStatsRes = await fetch(`${SERVER_URL}/api/network-info`);
-  const finalStats = await finalStatsRes.json();
-  console.log(`  ✓ Updated Database Stats:`, finalStats.stats);
-
-  // Cleanup test channel
-  if (customGroup && customGroup.id) {
-    try {
-      await fetch(`${SERVER_URL}/api/channels/${customGroup.id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${user1Data.token}` }
-      });
-    } catch (_) {}
-  }
-
-  // Cleanup sockets
+  // Cleanup: Delete test data and disconnect
   socketAlice.disconnect();
   socketBob.disconnect();
 

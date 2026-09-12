@@ -266,16 +266,26 @@ const Chat = {
     el.dataset.msgId = msg.id;
 
     const timeStr = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const isGeneral = this.activeRoom && (this.activeRoom.id === 'chan_general' || this.activeRoom.name === 'general');
     const isMe = Auth.user && Auth.user.id === msg.sender_id;
-    const initial = (msg.sender_display_name || msg.sender_username || 'U').charAt(0).toUpperCase();
-    const avatarBg = msg.sender_avatar_color || '#6366f1';
+
+    let senderName = msg.sender_display_name || msg.sender_username || 'User';
+    let avatarBg = msg.sender_avatar_color || '#6366f1';
+    let initial = senderName.charAt(0).toUpperCase();
+
+    if (isGeneral) {
+      senderName = isMe ? 'You (Anonymous)' : 'Anonymous';
+      avatarBg = '#64748b';
+      initial = '🕶️';
+    }
 
     // Reply Bubble if quoting
     let replyHtml = '';
     if (msg.reply_to_id && msg.reply_to_sender) {
+      const replySender = isGeneral ? 'Anonymous' : msg.reply_to_sender;
       replyHtml = `
         <div class="reply-ref">
-          <span class="reply-ref-name">↪ ${this.escapeHtml(msg.reply_to_sender)}:</span>
+          <span class="reply-ref-name">↪ ${this.escapeHtml(replySender)}:</span>
           <span class="reply-ref-text">${this.escapeHtml(msg.reply_to_content || '')}</span>
         </div>
       `;
@@ -323,10 +333,11 @@ const Chat = {
     const reactionsHtml = this.renderReactionsHtml(msg.reactions || [], msg.id);
 
     // Action Bar HTML
+    const quoteSender = isGeneral ? 'Anonymous' : (msg.sender_display_name || msg.sender_username);
     const actionBarHtml = `
       <div class="message-action-bar">
         <button class="icon-btn-xs" title="React" onclick="Chat.showQuickReaction('${msg.id}')">😊</button>
-        <button class="icon-btn-xs" title="Reply" onclick="Chat.setReply('${msg.id}', '${this.escapeHtml(msg.sender_display_name || msg.sender_username)}', '${this.escapeHtml(msg.content || '')}')">💬</button>
+        <button class="icon-btn-xs" title="Reply" onclick="Chat.setReply('${msg.id}', '${this.escapeHtml(quoteSender)}', '${this.escapeHtml(msg.content || '')}')">💬</button>
         ${isMe ? `<button class="icon-btn-xs" title="Edit" onclick="Chat.editMessagePrompt('${msg.id}')">✏️</button>` : ''}
         ${isMe ? `<button class="icon-btn-xs" title="Delete" onclick="Chat.deleteMessage('${msg.id}')">🗑️</button>` : ''}
       </div>
@@ -336,7 +347,7 @@ const Chat = {
       <div class="msg-avatar" style="background-color:${avatarBg}">${initial}</div>
       <div class="msg-body">
         <div class="msg-header">
-          <span class="msg-sender">${this.escapeHtml(msg.sender_display_name || msg.sender_username)}</span>
+          <span class="msg-sender">${this.escapeHtml(senderName)}</span>
           <span class="msg-timestamp">${timeStr}</span>
           ${msg.is_edited ? '<span class="msg-edited-tag">(edited)</span>' : ''}
         </div>

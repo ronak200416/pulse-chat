@@ -129,8 +129,20 @@ class DatabaseService {
         UNIQUE (message_id, user_id, emoji)
       );
 
+      CREATE TABLE IF NOT EXISTS friend_requests (
+        id TEXT PRIMARY KEY,
+        sender_id TEXT NOT NULL,
+        receiver_id TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE (sender_id, receiver_id)
+      );
+
       CREATE INDEX IF NOT EXISTS idx_messages_room ON messages(room_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_reactions_msg ON reactions(message_id);
+      CREATE INDEX IF NOT EXISTS idx_fr_receiver ON friend_requests(receiver_id, status);
+      CREATE INDEX IF NOT EXISTS idx_fr_sender ON friend_requests(sender_id, status);
     `);
   }
 
@@ -263,8 +275,20 @@ class DatabaseService {
         UNIQUE (message_id, user_id, emoji)
       );
 
+      CREATE TABLE IF NOT EXISTS friend_requests (
+        id TEXT PRIMARY KEY,
+        sender_id TEXT NOT NULL,
+        receiver_id TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE (sender_id, receiver_id)
+      );
+
       CREATE INDEX IF NOT EXISTS idx_messages_room ON messages(room_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_reactions_msg ON reactions(message_id);
+      CREATE INDEX IF NOT EXISTS idx_fr_receiver ON friend_requests(receiver_id, status);
+      CREATE INDEX IF NOT EXISTS idx_fr_sender ON friend_requests(sender_id, status);
     `);
   }
 
@@ -607,6 +631,17 @@ class DatabaseService {
     `, [id]);
     if (msg) {
       msg.reactions = await this.getReactionsForMessage(id);
+      if (msg.room_id === 'chan_general') {
+        msg.sender_display_name = 'Anonymous';
+        msg.sender_username = 'anonymous';
+        msg.sender_avatar_color = '#64748b';
+        msg.sender_avatar_url = null;
+        if (msg.reactions) {
+          msg.reactions.forEach(r => {
+            r.users = (r.users || []).map(() => ({ id: 'anon', username: 'Anonymous' }));
+          });
+        }
+      }
     }
     return msg;
   }
@@ -632,6 +667,17 @@ class DatabaseService {
     
     for (const row of rows) {
       row.reactions = await this.getReactionsForMessage(row.id);
+      if (roomId === 'chan_general') {
+        row.sender_display_name = 'Anonymous';
+        row.sender_username = 'anonymous';
+        row.sender_avatar_color = '#64748b';
+        row.sender_avatar_url = null;
+        if (row.reactions) {
+          row.reactions.forEach(r => {
+            r.users = (r.users || []).map(() => ({ id: 'anon', username: 'Anonymous' }));
+          });
+        }
+      }
     }
     return rows;
   }
@@ -668,7 +714,18 @@ class DatabaseService {
       params.push(roomId);
     }
     sql += ' ORDER BY m.created_at DESC LIMIT 30';
-    return await this.getAll(sql, params);
+    const msgs = await this.getAll(sql, params);
+    return msgs.map(m => {
+      if (m.room_id === 'chan_general') {
+        return {
+          ...m,
+          sender_display_name: 'Anonymous',
+          sender_username: 'anonymous',
+          sender_avatar_color: '#64748b'
+        };
+      }
+      return m;
+    });
   }
 
   // --- REACTIONS ---
@@ -727,6 +784,163 @@ class DatabaseService {
       });
     }
     return result;
+  }
+
+  // --- FRIEND REQUESTS & RELATIONSHIPS ---
+  async sendFriendRequest(senderId, targetIdentifier) {
+    if (!targetIdentifier || !targetIdentifier.trim()) {
+      return { error: 'Please enter a username or user ID' };
+    }
+
+    const clean = targetIdentifier.trim().toLowerCase();
+    let receiver = await this.getOne('SELECT * FROM users WHERE id = ? OR LOWER(username) = ?', [clean, clean]);
+    if (!receiver) {
+      return { error: 'User not found. Check the username or ID and try again.' };
+    }
+
+    if (receiver.id === senderId) {
+      return { error: 'You cannot send a friend request to yourself.' };
+    }
+
+    // Check existing relation
+    const existing = await this.getOne(
+      'SELECT * FROM friend_requests WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)',
+      [senderId, receiver.id, receiver.id, senderId]
+    );
+
+    const now = Date.now();
+
+    if (existing) {
+      if (existing.status === 'accepted') {
+        return { error: `You and @${receiver.username} are already friends!` };
+      }
+      if (existing.sender_id === senderId && existing.status === 'pending') {
+        return { error: `Friend request to @${receiver.username} is already pending.` };
+      }
+      if (existing.sender_id === receiver.id && existing.status === 'pending') {
+        // Auto accept reverse request
+        await this.run('UPDATE friend_requests SET status = "accepted", updated_at = ? WHERE id = ?', [now, existing.id]);
+        const friendUser = await this.getUserById(receiver.id);
+        return { success: true, auto_accepted: true, message: `You and @${receiver.username} are now friends!`, friend: friendUser, requestId: existing.id, receiver_id: receiver.id };
+      }
+      // If rejected or cancelled, reopen as pending
+      await this.run('UPDATE friend_requests SET sender_id = ?, receiver_id = ?, status = "pending", updated_at = ? WHERE id = ?', [senderId, receiver.id, now, existing.id]);
+      return { success: true, message: `Friend request sent to @${receiver.username}!`, receiver, requestId: existing.id };
+    }
+
+    const reqId = `freq_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    await this.run(
+      'INSERT INTO friend_requests (id, sender_id, receiver_id, status, created_at, updated_at) VALUES (?, ?, ?, "pending", ?, ?)',
+      [reqId, senderId, receiver.id, now, now]
+    );
+
+    return { success: true, message: `Friend request sent to @${receiver.username}!`, receiver, requestId: reqId };
+  }
+
+  async getFriendRequests(userId) {
+    const incomingSql = `
+      SELECT fr.id as request_id, fr.created_at, fr.status,
+             u.id as user_id, u.username, u.display_name, u.avatar_color, u.avatar_url, u.bio, u.status as user_status, u.last_seen
+      FROM friend_requests fr
+      JOIN users u ON fr.sender_id = u.id
+      WHERE fr.receiver_id = ? AND fr.status = 'pending'
+      ORDER BY fr.created_at DESC
+    `;
+    const outgoingSql = `
+      SELECT fr.id as request_id, fr.created_at, fr.status,
+             u.id as user_id, u.username, u.display_name, u.avatar_color, u.avatar_url, u.bio, u.status as user_status, u.last_seen
+      FROM friend_requests fr
+      JOIN users u ON fr.receiver_id = u.id
+      WHERE fr.sender_id = ? AND fr.status = 'pending'
+      ORDER BY fr.created_at DESC
+    `;
+
+    const incoming = await this.getAll(incomingSql, [userId]);
+    const outgoing = await this.getAll(outgoingSql, [userId]);
+    return { incoming, outgoing };
+  }
+
+  async acceptFriendRequest(requestId, userId) {
+    const req = await this.getOne('SELECT * FROM friend_requests WHERE id = ? AND receiver_id = ?', [requestId, userId]);
+    if (!req) {
+      return { error: 'Friend request not found or not addressed to you' };
+    }
+    if (req.status === 'accepted') {
+      return { error: 'Request is already accepted' };
+    }
+
+    const now = Date.now();
+    await this.run('UPDATE friend_requests SET status = "accepted", updated_at = ? WHERE id = ?', [now, requestId]);
+
+    const senderUser = await this.getUserById(req.sender_id);
+    const receiverUser = await this.getUserById(req.receiver_id);
+    return { success: true, sender: senderUser, receiver: receiverUser, requestId };
+  }
+
+  async rejectFriendRequest(requestId, userId) {
+    const req = await this.getOne('SELECT * FROM friend_requests WHERE id = ? AND (receiver_id = ? OR sender_id = ?)', [requestId, userId, userId]);
+    if (!req) {
+      return { error: 'Friend request not found' };
+    }
+
+    await this.run('DELETE FROM friend_requests WHERE id = ?', [requestId]);
+    return { success: true, requestId, sender_id: req.sender_id, receiver_id: req.receiver_id };
+  }
+
+  async getFriends(userId) {
+    const sql = `
+      SELECT u.id, u.username, u.display_name, u.avatar_color, u.avatar_url, u.bio, u.status, u.last_seen, fr.updated_at as friendship_since
+      FROM friend_requests fr
+      JOIN users u ON (CASE WHEN fr.sender_id = ? THEN fr.receiver_id ELSE fr.sender_id END) = u.id
+      WHERE (fr.sender_id = ? OR fr.receiver_id = ?) AND fr.status = 'accepted'
+      ORDER BY u.display_name ASC
+    `;
+    return await this.getAll(sql, [userId, userId, userId]);
+  }
+
+  async searchUsers(query, currentUserId) {
+    const clean = `%${(query || '').trim().toLowerCase()}%`;
+    const users = await this.getAll(`
+      SELECT id, username, display_name, avatar_color, avatar_url, bio, status, last_seen
+      FROM users
+      WHERE id != ? AND (LOWER(username) LIKE ? OR LOWER(display_name) LIKE ? OR id LIKE ?)
+      LIMIT 20
+    `, [currentUserId, clean, clean, clean]);
+
+    const result = [];
+    for (const u of users) {
+      const rel = await this.getOne(`
+        SELECT id, sender_id, receiver_id, status
+        FROM friend_requests
+        WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
+      `, [currentUserId, u.id, u.id, currentUserId]);
+
+      let relationship = 'none';
+      let requestId = null;
+      if (rel) {
+        requestId = rel.id;
+        if (rel.status === 'accepted') {
+          relationship = 'friends';
+        } else if (rel.status === 'pending') {
+          relationship = rel.sender_id === currentUserId ? 'pending_sent' : 'pending_received';
+        }
+      }
+
+      result.push({
+        ...u,
+        relationship,
+        request_id: requestId
+      });
+    }
+    return result;
+  }
+
+  async removeFriend(userId, friendId) {
+    await this.run(`
+      DELETE FROM friend_requests 
+      WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
+    `, [userId, friendId, friendId, userId]);
+    return { success: true };
   }
 
   async getStats() {

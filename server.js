@@ -231,6 +231,164 @@ app.get('/api/users', async (req, res) => {
   res.json({ users });
 });
 
+// 6a. Search Users by Username or ID
+app.get('/api/users/search', authenticateToken, async (req, res) => {
+  try {
+    const query = req.query.q || '';
+    const results = await db.searchUsers(query, req.user.id);
+    res.json({ users: results });
+  } catch (err) {
+    console.error('Search users error:', err);
+    res.status(500).json({ error: 'Failed to search users' });
+  }
+});
+
+// 6b. Send Friend Request
+app.post('/api/friends/request', authenticateToken, async (req, res) => {
+  try {
+    const { target } = req.body;
+    if (!target) {
+      return res.status(400).json({ error: 'Target username or ID is required' });
+    }
+
+    const result = await db.sendFriendRequest(req.user.id, target);
+    if (result.error) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    // Socket alert to receiver if online
+    if (result.receiver) {
+      const receiverSockets = userSocketMap.get(result.receiver.id);
+      if (receiverSockets) {
+        const senderUser = await db.getUserById(req.user.id);
+        for (const sId of receiverSockets) {
+          io.to(sId).emit('friend_request_received', {
+            request_id: result.requestId,
+            sender: senderUser,
+            message: `@${senderUser.username} sent you a friend request!`
+          });
+        }
+      }
+    }
+
+    if (result.auto_accepted && result.receiver_id) {
+      const targetSockets = userSocketMap.get(result.receiver_id);
+      if (targetSockets) {
+        const senderUser = await db.getUserById(req.user.id);
+        for (const sId of targetSockets) {
+          io.to(sId).emit('friend_request_accepted', {
+            friend: senderUser,
+            message: `You and @${senderUser.username} are now friends!`
+          });
+        }
+      }
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error('Send friend request error:', err);
+    res.status(500).json({ error: 'Failed to send friend request' });
+  }
+});
+
+// 6c. Get Pending Friend Requests
+app.get('/api/friends/requests', authenticateToken, async (req, res) => {
+  try {
+    const requests = await db.getFriendRequests(req.user.id);
+    res.json(requests);
+  } catch (err) {
+    console.error('Get friend requests error:', err);
+    res.status(500).json({ error: 'Failed to fetch friend requests' });
+  }
+});
+
+// 6d. Accept Friend Request
+app.post('/api/friends/accept', authenticateToken, async (req, res) => {
+  try {
+    const { requestId } = req.body;
+    if (!requestId) {
+      return res.status(400).json({ error: 'requestId is required' });
+    }
+
+    const result = await db.acceptFriendRequest(requestId, req.user.id);
+    if (result.error) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    // Notify sender via Socket.IO
+    if (result.sender) {
+      const senderSockets = userSocketMap.get(result.sender.id);
+      if (senderSockets) {
+        for (const sId of senderSockets) {
+          io.to(sId).emit('friend_request_accepted', {
+            friend: result.receiver,
+            message: `@${result.receiver.username} accepted your friend request!`
+          });
+        }
+      }
+    }
+
+    // Also notify receiver sockets
+    if (result.receiver) {
+      const receiverSockets = userSocketMap.get(result.receiver.id);
+      if (receiverSockets) {
+        for (const sId of receiverSockets) {
+          io.to(sId).emit('friend_request_accepted', {
+            friend: result.sender,
+            message: `You are now friends with @${result.sender.username}!`
+          });
+        }
+      }
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error('Accept friend request error:', err);
+    res.status(500).json({ error: 'Failed to accept friend request' });
+  }
+});
+
+// 6e. Reject / Cancel Friend Request
+app.post('/api/friends/reject', authenticateToken, async (req, res) => {
+  try {
+    const { requestId } = req.body;
+    if (!requestId) {
+      return res.status(400).json({ error: 'requestId is required' });
+    }
+
+    const result = await db.rejectFriendRequest(requestId, req.user.id);
+    if (result.error) {
+      return res.status(400).json({ error: result.error });
+    }
+    res.json(result);
+  } catch (err) {
+    console.error('Reject friend request error:', err);
+    res.status(500).json({ error: 'Failed to reject friend request' });
+  }
+});
+
+// 6f. Get Accepted Friends
+app.get('/api/friends', authenticateToken, async (req, res) => {
+  try {
+    const friends = await db.getFriends(req.user.id);
+    res.json({ friends });
+  } catch (err) {
+    console.error('Get friends error:', err);
+    res.status(500).json({ error: 'Failed to fetch friends' });
+  }
+});
+
+// 6g. Remove Friend
+app.delete('/api/friends/:friendId', authenticateToken, async (req, res) => {
+  try {
+    await db.removeFriend(req.user.id, req.params.friendId);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Remove friend error:', err);
+    res.status(500).json({ error: 'Failed to remove friend' });
+  }
+});
+
 // 7. Get Channels
 app.get('/api/channels', optionalToken, async (req, res) => {
   const userId = req.user ? req.user.id : null;
@@ -467,22 +625,25 @@ io.on('connection', (socket) => {
 
   // Typing
   socket.on('typing', ({ roomId, username }) => {
-    socket.to(roomId).emit('user_typing', { roomId, username });
+    const emittedUsername = roomId === 'chan_general' ? 'Someone' : username;
+    socket.to(roomId).emit('user_typing', { roomId, username: emittedUsername });
   });
 
   socket.on('stop_typing', ({ roomId, username }) => {
-    socket.to(roomId).emit('user_stop_typing', { roomId, username });
+    const emittedUsername = roomId === 'chan_general' ? 'Someone' : username;
+    socket.to(roomId).emit('user_stop_typing', { roomId, username: emittedUsername });
   });
 
   // Reactions
   socket.on('add_reaction', async ({ messageId, emoji, roomId }) => {
     if (!currentUser) return;
     const reactionId = `rx_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const reactorName = roomId === 'chan_general' ? 'Anonymous' : (currentUser.display_name || currentUser.username);
     const updatedReactions = await db.addReaction({
       id: reactionId,
       message_id: messageId,
       user_id: currentUser.id,
-      username: currentUser.display_name || currentUser.username,
+      username: reactorName,
       emoji
     });
     io.to(roomId).emit('reaction_updated', { messageId, reactions: updatedReactions });
