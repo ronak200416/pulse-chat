@@ -156,18 +156,38 @@
         </button>
       </div>
 
-      <!-- Scrollable Navigation (Channels & DMs) -->
+      <!-- Scrollable Navigation (General Chat, Groups & DMs) -->
       <div class="sidebar-scrollable custom-scroll">
-        <!-- Channels Section -->
+        <!-- Pinned General Chat Section -->
+        <div class="nav-section nav-section-pinned">
+          <div class="nav-section-header">
+            <span class="nav-section-title">COMMUNITY CHAT</span>
+          </div>
+          <div class="general-chat-card" id="btn-general-chat" role="button" tabindex="0" title="Switch to General Chat">
+            <div class="general-icon-wrap">
+              <span class="general-icon">🌐</span>
+              <span class="general-pulse-dot"></span>
+            </div>
+            <div class="general-info">
+              <div class="general-title-row">
+                <span class="general-name"># general</span>
+                <span class="general-badge">GLOBAL</span>
+              </div>
+              <span class="general-desc">Town square for everyone</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Custom User Groups Section -->
         <div class="nav-section">
           <div class="nav-section-header">
-            <span class="nav-section-title">CHANNELS & GROUPS</span>
+            <span class="nav-section-title">GROUPS & CHANNELS</span>
             <button class="icon-btn-xs" id="btn-add-channel" title="Create Group" aria-label="Create Group">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
             </button>
           </div>
           <div class="nav-list" id="channels-list">
-            <!-- Channel items inserted dynamically -->
+            <!-- Custom groups created or joined dynamically inserted -->
           </div>
         </div>
 

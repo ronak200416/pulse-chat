@@ -24,6 +24,7 @@ class DatabaseService {
         authToken: TURSO_TOKEN
       });
       await this.createTablesTurso();
+      await this.cleanupLegacyChannelsTurso();
       await this.seedDefaultChannelsTurso();
       console.log('🌟 Connected to Turso Cloud SQLite with 100% PERMANENT cloud storage!');
       return this;
@@ -47,6 +48,7 @@ class DatabaseService {
     }
 
     this.createTablesLocal();
+    this.cleanupLegacyChannelsLocal();
     this.seedDefaultChannelsLocal();
     this.saveLocal();
     return this;
@@ -130,12 +132,22 @@ class DatabaseService {
     `);
   }
 
+  async cleanupLegacyChannelsTurso() {
+    const legacyIds = ['chan_random', 'chan_tech', 'chan_media'];
+    for (const id of legacyIds) {
+      const messages = await this.getAll('SELECT id FROM messages WHERE room_id = ?', [id]);
+      for (const m of messages) {
+        await this.run('DELETE FROM reactions WHERE message_id = ?', [m.id]);
+      }
+      await this.run('DELETE FROM messages WHERE room_id = ?', [id]);
+      await this.run('DELETE FROM channel_members WHERE channel_id = ?', [id]);
+      await this.run('DELETE FROM channels WHERE id = ?', [id]);
+    }
+  }
+
   async seedDefaultChannelsTurso() {
     const defaults = [
-      { id: 'chan_general', name: 'general', description: 'The town square - hang out, chat and say hello!', icon: '💬' },
-      { id: 'chan_random', name: 'random', description: 'Memes, casual banter, fun links & laughs', icon: '⚡' },
-      { id: 'chan_tech', name: 'tech-lounge', description: 'Coding, apps, hardware, and tech ideas', icon: '🚀' },
-      { id: 'chan_media', name: 'music-and-media', description: 'Share clips, voice notes, tracks, and art', icon: '🎧' }
+      { id: 'chan_general', name: 'general', description: 'The town square - hang out, chat and say hello to everyone!', icon: '💬' }
     ];
 
     for (const c of defaults) {
@@ -213,12 +225,33 @@ class DatabaseService {
     `);
   }
 
+  cleanupLegacyChannelsLocal() {
+    const legacyIds = ['chan_random', 'chan_tech', 'chan_media'];
+    for (const id of legacyIds) {
+      try {
+        const stmt = this.db.prepare('SELECT id FROM messages WHERE room_id = :id');
+        stmt.bind({ ':id': id });
+        const msgIds = [];
+        while (stmt.step()) {
+          msgIds.push(stmt.getAsObject().id);
+        }
+        stmt.free();
+
+        for (const mId of msgIds) {
+          this.db.run('DELETE FROM reactions WHERE message_id = ?', [mId]);
+        }
+        this.db.run('DELETE FROM messages WHERE room_id = ?', [id]);
+        this.db.run('DELETE FROM channel_members WHERE channel_id = ?', [id]);
+        this.db.run('DELETE FROM channels WHERE id = ?', [id]);
+      } catch (e) {
+        console.warn(`Note cleaning legacy channel ${id}:`, e.message);
+      }
+    }
+  }
+
   seedDefaultChannelsLocal() {
     const defaults = [
-      { id: 'chan_general', name: 'general', description: 'The town square - hang out, chat and say hello!', icon: '💬' },
-      { id: 'chan_random', name: 'random', description: 'Memes, casual banter, fun links & laughs', icon: '⚡' },
-      { id: 'chan_tech', name: 'tech-lounge', description: 'Coding, apps, hardware, and tech ideas', icon: '🚀' },
-      { id: 'chan_media', name: 'music-and-media', description: 'Share clips, voice notes, tracks, and art', icon: '🎧' }
+      { id: 'chan_general', name: 'general', description: 'The town square - hang out, chat and say hello to everyone!', icon: '💬' }
     ];
 
     for (const c of defaults) {
@@ -321,13 +354,13 @@ class DatabaseService {
   // --- CHANNEL QUERIES ---
   async getChannels(userId = null) {
     if (!userId) {
-      return await this.getAll('SELECT * FROM channels WHERE is_private = 0 ORDER BY created_at ASC');
+      return await this.getAll("SELECT * FROM channels WHERE id = 'chan_general' ORDER BY created_at ASC");
     }
     const sql = `
       SELECT DISTINCT c.* 
       FROM channels c
       LEFT JOIN channel_members cm ON c.id = cm.channel_id
-      WHERE c.is_private = 0 OR c.created_by = ? OR cm.user_id = ?
+      WHERE c.id = 'chan_general' OR c.created_by = ? OR cm.user_id = ?
       ORDER BY c.created_at ASC
     `;
     return await this.getAll(sql, [userId, userId]);
@@ -335,6 +368,11 @@ class DatabaseService {
 
   async getChannelById(id) {
     return await this.getOne('SELECT * FROM channels WHERE id = ?', [id]);
+  }
+
+  async getChannelMemberIds(channelId) {
+    const rows = await this.getAll('SELECT user_id FROM channel_members WHERE channel_id = ?', [channelId]);
+    return rows.map(r => r.user_id);
   }
 
   async createChannel({ id, name, description, icon, is_private = 0, created_by, members = [] }) {
@@ -363,16 +401,18 @@ class DatabaseService {
       }
     }
 
-    return await this.getChannelById(id);
+    const chan = await this.getChannelById(id);
+    const memberIds = await this.getChannelMemberIds(id);
+    return { ...chan, member_ids: memberIds };
   }
 
   async deleteChannel(channelId, userId) {
     const chan = await this.getChannelById(channelId);
     if (!chan) return { error: 'Channel not found' };
 
-    const defaultIds = ['chan_general', 'chan_random', 'chan_tech', 'chan_media'];
+    const defaultIds = ['chan_general'];
     if (defaultIds.includes(channelId)) {
-      return { error: 'Default channels cannot be deleted' };
+      return { error: 'General chat cannot be deleted' };
     }
 
     if (chan.created_by !== userId) {
@@ -393,9 +433,9 @@ class DatabaseService {
     const chan = await this.getChannelById(channelId);
     if (!chan) return { error: 'Channel not found' };
 
-    const defaultIds = ['chan_general', 'chan_random', 'chan_tech', 'chan_media'];
+    const defaultIds = ['chan_general'];
     if (defaultIds.includes(channelId)) {
-      return { error: 'Cannot leave default channels' };
+      return { error: 'Cannot leave General chat' };
     }
 
     await this.run('DELETE FROM channel_members WHERE channel_id = ? AND user_id = ?', [channelId, userId]);

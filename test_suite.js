@@ -55,15 +55,63 @@ async function runTests() {
   if (!loginData.token) throw new Error('User 2 login failed');
   console.log(`  ✓ Login verified, token generated.`);
 
-  // Test 5: Channels Endpoint
+  // Test 5: Channels Endpoint - Verify Only #general is default
   console.log('\nTest 5: Fetching Default Channels...');
   const chanRes = await fetch(`${SERVER_URL}/api/channels`);
   const chanData = await chanRes.json();
-  console.log(`  ✓ Found ${chanData.channels.length} channels:`, chanData.channels.map(c => `#${c.name}`).join(', '));
-  const generalChan = chanData.channels.find(c => c.name === 'general') || chanData.channels[0];
+  console.log(`  ✓ Found ${chanData.channels.length} default channels:`, chanData.channels.map(c => `#${c.name}`).join(', '));
+  if (chanData.channels.length !== 1 || chanData.channels[0].name !== 'general') {
+    throw new Error(`Expected only '#general', but got ${JSON.stringify(chanData.channels)}`);
+  }
+  const generalChan = chanData.channels[0];
 
-  // Test 6: Real-time WebSockets & Bidirectional Chat
-  console.log('\nTest 6: Connecting Alice & Bob via Socket.IO...');
+  // Test 6: Dynamic Group Creation and Membership Isolation
+  console.log('\nTest 6: Creating custom group with Alice and Bob...');
+  const groupCreateRes = await fetch(`${SERVER_URL}/api/channels`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${user1Data.token}`
+    },
+    body: JSON.stringify({
+      name: 'alpha-squad',
+      description: 'Top secret squad channel',
+      icon: '🛡️',
+      members: [user2Data.user.id]
+    })
+  });
+  const groupCreateData = await groupCreateRes.json();
+  if (!groupCreateData.channel) throw new Error('Failed to create group');
+  const customGroup = groupCreateData.channel;
+  console.log(`  ✓ Group created: #${customGroup.name} (ID: ${customGroup.id}) by Alice`);
+
+  // Create Charlie (User 3) who is NOT in the group
+  console.log('  Creating User 3 (Charlie)...');
+  const user3Res = await fetch(`${SERVER_URL}/api/auth/guest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ display_name: 'Charlie Stranger', avatar_color: '#3b82f6' })
+  });
+  const user3Data = await user3Res.json();
+
+  // Check Alice's channels (Creator)
+  const aliceChans = await (await fetch(`${SERVER_URL}/api/channels`, { headers: { 'Authorization': `Bearer ${user1Data.token}` } })).json();
+  console.log(`  ✓ Alice sees:`, aliceChans.channels.map(c => `#${c.name}`).join(', '));
+  if (!aliceChans.channels.some(c => c.id === customGroup.id)) throw new Error('Alice cannot see her created group');
+
+  // Check Bob's channels (Member)
+  const bobChans = await (await fetch(`${SERVER_URL}/api/channels`, { headers: { 'Authorization': `Bearer ${user2Data.token}` } })).json();
+  console.log(`  ✓ Bob sees:`, bobChans.channels.map(c => `#${c.name}`).join(', '));
+  if (!bobChans.channels.some(c => c.id === customGroup.id)) throw new Error('Bob cannot see group he was added to');
+
+  // Check Charlie's channels (Uninvited)
+  const charlieChans = await (await fetch(`${SERVER_URL}/api/channels`, { headers: { 'Authorization': `Bearer ${user3Data.token}` } })).json();
+  console.log(`  ✓ Charlie sees:`, charlieChans.channels.map(c => `#${c.name}`).join(', '));
+  if (charlieChans.channels.some(c => c.id === customGroup.id)) throw new Error('Charlie can see group he was NOT invited to!');
+  console.log(`  ✓ Membership isolation verified: Charlie does not see Alice & Bob\'s custom group!`);
+
+  // Test 7: Real-time WebSockets & Bidirectional Chat
+  console.log('\nTest 7: Connecting Alice & Bob via Socket.IO...');
   const socketAlice = io(SERVER_URL);
   const socketBob = io(SERVER_URL);
 
@@ -91,8 +139,8 @@ async function runTests() {
   await new Promise(r => setTimeout(r, 300));
   console.log(`  ✓ Both users joined #${generalChan.name}.`);
 
-  // Test 7: Send Message & Receive in Real Time
-  console.log('\nTest 7: Alice sending message to #general, Bob listening...');
+  // Test 8: Send Message & Receive in Real Time
+  console.log('\nTest 8: Alice sending message to #general, Bob listening...');
   const messagePromise = new Promise((resolve, reject) => {
     socketBob.on('new_message', (msg) => {
       if (msg.content.includes('Hello Bob!')) {
@@ -112,8 +160,8 @@ async function runTests() {
   const receivedMsg = await messagePromise;
   console.log(`  ✓ Bob received message in real time: "${receivedMsg.content}" (ID: ${receivedMsg.id})`);
 
-  // Test 8: Emoji Reactions in Real Time
-  console.log('\nTest 8: Bob reacting with 🔥 to Alice\'s message...');
+  // Test 9: Emoji Reactions in Real Time
+  console.log('\nTest 9: Bob reacting with 🔥 to Alice\'s message...');
   const reactionPromise = new Promise((resolve, reject) => {
     socketAlice.on('reaction_updated', ({ messageId, reactions }) => {
       if (messageId === receivedMsg.id) {
@@ -132,8 +180,8 @@ async function runTests() {
   const reactions = await reactionPromise;
   console.log(`  ✓ Alice received reaction update:`, reactions);
 
-  // Test 9: 1-on-1 Direct Messaging
-  console.log('\nTest 9: 1-on-1 Direct Messaging between Bob and Alice...');
+  // Test 10: 1-on-1 Direct Messaging
+  console.log('\nTest 10: 1-on-1 Direct Messaging between Bob and Alice...');
   const dmRoomId = [user1Data.user.id, user2Data.user.id].sort().join('_');
   socketAlice.emit('join_room', `dm_${dmRoomId}`);
   socketBob.emit('join_room', `dm_${dmRoomId}`);
@@ -159,15 +207,15 @@ async function runTests() {
   const receivedDm = await dmPromise;
   console.log(`  ✓ Alice received DM: "${receivedDm.content}"`);
 
-  // Test 10: Verify SQLite Database Persistence
-  console.log('\nTest 10: Verifying SQLite Database Persistence...');
+  // Test 11: Verify SQLite Database Persistence
+  console.log('\nTest 11: Verifying SQLite Database Persistence...');
   const historyRes = await fetch(`${SERVER_URL}/api/messages/${generalChan.id}`);
   const historyData = await historyRes.json();
   const foundMsg = historyData.messages.find(m => m.id === receivedMsg.id);
   if (!foundMsg) throw new Error('Message was not found in SQLite database!');
   console.log(`  ✓ Message confirmed saved in SQLite database! Total messages in room: ${historyData.messages.length}`);
 
-  // Test 11: Final Stats check
+  // Test 12: Final Stats check
   const finalStatsRes = await fetch(`${SERVER_URL}/api/network-info`);
   const finalStats = await finalStatsRes.json();
   console.log(`  ✓ Updated Database Stats:`, finalStats.stats);

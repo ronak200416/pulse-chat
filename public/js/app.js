@@ -110,6 +110,15 @@ const App = {
       });
     }
 
+    // Pinned General Chat Button
+    const btnGeneral = document.getElementById('btn-general-chat');
+    if (btnGeneral) {
+      btnGeneral.addEventListener('click', () => {
+        this.selectGeneralRoom();
+        this.closeMobileDrawer();
+      });
+    }
+
     // Add Channel / Group Modal
     const btnAddChannel = document.getElementById('btn-add-channel');
     const createChannelModal = document.getElementById('create-channel-modal');
@@ -151,7 +160,7 @@ const App = {
               name,
               description: desc,
               icon,
-              is_private: selectedMembers.length > 0 ? 1 : 0,
+              is_private: 0,
               members: selectedMembers
             })
           });
@@ -160,6 +169,14 @@ const App = {
             closeCreateChan();
             createChannelForm.reset();
             this.showToast(`Group #${data.channel.name} created!`);
+            
+            // Add to channels if not already present
+            const exists = this.channels.some(c => c.id === data.channel.id);
+            if (!exists) {
+              this.channels.push(data.channel);
+              this.renderChannelsList();
+            }
+
             this.selectRoom({
               id: data.channel.id,
               name: data.channel.name,
@@ -181,7 +198,7 @@ const App = {
     const btnHeaderDelete = document.getElementById('btn-header-delete-group');
     const btnSidebarDelete = document.getElementById('btn-sidebar-delete-group');
     const handleDelete = async () => {
-      if (!this.currentRoom || this.currentRoom.type !== 'channel') return;
+      if (!this.currentRoom || this.currentRoom.type !== 'channel' || this.currentRoom.id === 'chan_general') return;
       if (!confirm(`Are you sure you want to permanently delete the group #${this.currentRoom.name}? This will remove all its messages.`)) return;
 
       try {
@@ -192,6 +209,9 @@ const App = {
         const data = await res.json();
         if (data.success) {
           this.showToast(`Group #${this.currentRoom.name} deleted`);
+          this.channels = this.channels.filter(c => c.id !== this.currentRoom.id);
+          this.renderChannelsList();
+          this.selectGeneralRoom();
         } else if (data.error) {
           alert(data.error);
         }
@@ -206,7 +226,7 @@ const App = {
     const btnHeaderLeave = document.getElementById('btn-header-leave-group');
     const btnSidebarLeave = document.getElementById('btn-sidebar-leave-group');
     const handleLeave = async () => {
-      if (!this.currentRoom || this.currentRoom.type !== 'channel') return;
+      if (!this.currentRoom || this.currentRoom.type !== 'channel' || this.currentRoom.id === 'chan_general') return;
       if (!confirm(`Are you sure you want to leave the group #${this.currentRoom.name}?`)) return;
 
       try {
@@ -219,8 +239,7 @@ const App = {
           this.showToast(`You left #${this.currentRoom.name}`);
           this.channels = this.channels.filter(c => c.id !== this.currentRoom.id);
           this.renderChannelsList();
-          const general = this.channels.find(c => c.name === 'general') || this.channels[0];
-          if (general) this.selectRoom(general);
+          this.selectGeneralRoom();
         } else if (data.error) {
           alert(data.error);
         }
@@ -299,10 +318,17 @@ const App = {
     });
 
     this.socket.on('channel_created', (channel) => {
-      const exists = this.channels.some(c => c.id === channel.id);
-      if (!exists) {
-        this.channels.push(channel);
-        this.renderChannelsList();
+      const isCreator = Auth.user && channel.created_by === Auth.user.id;
+      const isMember = Auth.user && Array.isArray(channel.member_ids) && channel.member_ids.includes(Auth.user.id);
+      if (channel.id === 'chan_general' || isCreator || isMember) {
+        const exists = this.channels.some(c => c.id === channel.id);
+        if (!exists) {
+          this.channels.push(channel);
+          this.renderChannelsList();
+          if (isMember && !isCreator) {
+            this.showToast(`You were added to group #${channel.name}!`);
+          }
+        }
       }
     });
 
@@ -312,8 +338,7 @@ const App = {
 
       if (this.currentRoom && this.currentRoom.id === channelId) {
         this.showToast('This group was deleted by the creator');
-        const general = this.channels.find(c => c.name === 'general') || this.channels[0];
-        if (general) this.selectRoom(general);
+        this.selectGeneralRoom();
       }
     });
 
@@ -322,8 +347,7 @@ const App = {
         this.channels = this.channels.filter(c => c.id !== channelId);
         this.renderChannelsList();
         if (this.currentRoom && this.currentRoom.id === channelId) {
-          const general = this.channels.find(c => c.name === 'general') || this.channels[0];
-          if (general) this.selectRoom(general);
+          this.selectGeneralRoom();
         }
       }
       this.renderRoomMembers();
@@ -335,8 +359,7 @@ const App = {
         this.channels = this.channels.filter(c => c.id !== channelId);
         this.renderChannelsList();
         if (this.currentRoom && this.currentRoom.id === channelId) {
-          const general = this.channels.find(c => c.name === 'general') || this.channels[0];
-          if (general) this.selectRoom(general);
+          this.selectGeneralRoom();
         }
       }
       this.renderRoomMembers();
@@ -387,6 +410,25 @@ const App = {
     });
   },
 
+  selectGeneralRoom() {
+    const general = this.channels.find(c => c.id === 'chan_general' || c.name === 'general') || {
+      id: 'chan_general',
+      name: 'general',
+      type: 'channel',
+      icon: '💬',
+      desc: 'The town square - hang out, chat and say hello to everyone!',
+      created_by: 'system'
+    };
+    this.selectRoom({
+      id: general.id,
+      name: general.name,
+      type: 'channel',
+      icon: general.icon || '💬',
+      desc: general.description || general.desc || 'The town square - hang out, chat and say hello to everyone!',
+      created_by: general.created_by || 'system'
+    });
+  },
+
   async loadChannels() {
     try {
       const headers = Auth.token ? { 'Authorization': `Bearer ${Auth.token}` } : {};
@@ -395,16 +437,8 @@ const App = {
       this.channels = data.channels || [];
       this.renderChannelsList();
 
-      if (!this.currentRoom && this.channels.length > 0) {
-        const general = this.channels.find(c => c.name === 'general') || this.channels[0];
-        this.selectRoom({
-          id: general.id,
-          name: general.name,
-          type: 'channel',
-          icon: general.icon,
-          desc: general.description,
-          created_by: general.created_by
-        });
+      if (!this.currentRoom) {
+        this.selectGeneralRoom();
       }
     } catch (err) {
       console.error('Failed to load channels:', err);
@@ -424,17 +458,53 @@ const App = {
   },
 
   renderChannelsList() {
+    // Update General Chat Pinned Active State
+    const btnGeneral = document.getElementById('btn-general-chat');
+    if (btnGeneral) {
+      const isGeneralActive = this.currentRoom && (this.currentRoom.id === 'chan_general' || this.currentRoom.name === 'general');
+      if (isGeneralActive) {
+        btnGeneral.classList.add('active');
+      } else {
+        btnGeneral.classList.remove('active');
+      }
+    }
+
     const list = document.getElementById('channels-list');
     if (!list) return;
     list.innerHTML = '';
 
-    this.channels.forEach(c => {
+    // Filter only custom user groups (exclude general)
+    const customGroups = this.channels.filter(c => c.id !== 'chan_general' && c.name !== 'general');
+
+    if (customGroups.length === 0) {
+      const emptyState = document.createElement('div');
+      emptyState.className = 'empty-nav-state';
+      emptyState.innerHTML = `
+        <div>No groups created or joined yet</div>
+        <button type="button" class="btn-create-hint" id="btn-create-hint-empty">
+          <span>+ Create a Group</span>
+        </button>
+      `;
+      const hintBtn = emptyState.querySelector('#btn-create-hint-empty');
+      if (hintBtn) {
+        hintBtn.addEventListener('click', () => {
+          const btnAdd = document.getElementById('btn-add-channel');
+          if (btnAdd) btnAdd.click();
+        });
+      }
+      list.appendChild(emptyState);
+      return;
+    }
+
+    customGroups.forEach(c => {
+      const isOwner = Auth.user && c.created_by === Auth.user.id;
       const item = document.createElement('div');
       item.className = `nav-item ${this.currentRoom && this.currentRoom.id === c.id ? 'active' : ''}`;
       item.dataset.channelId = c.id;
       item.innerHTML = `
-        <span class="nav-item-icon">${c.icon || '#'}</span>
+        <span class="nav-item-icon">${c.icon || '💬'}</span>
         <span class="nav-item-title">${c.name}</span>
+        ${isOwner ? '<span class="group-badge-role">Owner</span>' : ''}
       `;
       item.addEventListener('click', () => {
         this.selectRoom({
@@ -489,12 +559,11 @@ const App = {
 
     memberList.innerHTML = '';
 
-    const defaultIds = ['chan_general', 'chan_random', 'chan_tech', 'chan_media'];
     const isChannel = this.currentRoom && this.currentRoom.type === 'channel';
-    const isDefault = this.currentRoom && defaultIds.includes(this.currentRoom.id);
+    const isGeneral = this.currentRoom && (this.currentRoom.id === 'chan_general' || this.currentRoom.name === 'general');
     const isCreator = this.currentRoom && Auth.user && this.currentRoom.created_by === Auth.user.id;
 
-    if (isChannel && !isDefault) {
+    if (isChannel && !isGeneral) {
       try {
         const res = await fetch(`/api/channels/${this.currentRoom.id}/members`);
         const data = await res.json();
@@ -530,7 +599,7 @@ const App = {
       } catch (e) {}
     }
 
-    // Default: show all users
+    // Default: show all users (e.g. for General chat)
     if (memberCount) memberCount.textContent = this.users.length;
     this.users.forEach(u => {
       const isOnline = this.onlineUserIds.has(u.id);
@@ -551,7 +620,7 @@ const App = {
   },
 
   async removeMemberFromGroup(userId, displayName) {
-    if (!this.currentRoom || this.currentRoom.type !== 'channel') return;
+    if (!this.currentRoom || this.currentRoom.type !== 'channel' || this.currentRoom.id === 'chan_general') return;
     if (!confirm(`Remove ${displayName} from #${this.currentRoom.name}?`)) return;
 
     try {
@@ -576,12 +645,11 @@ const App = {
     const btnHeaderLeave = document.getElementById('btn-header-leave-group');
     const btnSidebarLeave = document.getElementById('btn-sidebar-leave-group');
 
-    const defaultIds = ['chan_general', 'chan_random', 'chan_tech', 'chan_media'];
     const isChannel = this.currentRoom && this.currentRoom.type === 'channel';
-    const isDefault = this.currentRoom && defaultIds.includes(this.currentRoom.id);
+    const isGeneral = this.currentRoom && (this.currentRoom.id === 'chan_general' || this.currentRoom.name === 'general');
     const isCreator = this.currentRoom && Auth.user && this.currentRoom.created_by === Auth.user.id;
 
-    if (isChannel && !isDefault) {
+    if (isChannel && !isGeneral) {
       if (isCreator) {
         if (btnHeaderDelete) btnHeaderDelete.style.display = 'inline-flex';
         if (btnSidebarDelete) btnSidebarDelete.style.display = 'block';
