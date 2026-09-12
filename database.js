@@ -235,11 +235,11 @@ class DatabaseService {
 
     for (const c of defaults) {
       await this.tursoClient.execute({
-        sql: 'INSERT OR IGNORE INTO channels (id, name, description, icon, is_private, created_by, created_at) VALUES (?, ?, ?, ?, 0, "system", ?)',
+        sql: "INSERT OR IGNORE INTO channels (id, name, description, icon, is_private, created_by, created_at) VALUES (?, ?, ?, ?, 0, 'system', ?)",
         args: [c.id, c.name, c.description, c.icon, Date.now()]
       });
       await this.tursoClient.execute({
-        sql: 'UPDATE channels SET name = "General" WHERE id = "chan_general"',
+        sql: "UPDATE channels SET name = 'General' WHERE id = 'chan_general'",
         args: []
       });
     }
@@ -361,12 +361,12 @@ class DatabaseService {
 
       if (!exists) {
         this.db.run(
-          'INSERT INTO channels (id, name, description, icon, is_private, created_by, created_at) VALUES (?, ?, ?, ?, 0, "system", ?)',
+          "INSERT INTO channels (id, name, description, icon, is_private, created_by, created_at) VALUES (?, ?, ?, ?, 0, 'system', ?)",
           [c.id, c.name, c.description, c.icon, Date.now()]
         );
       }
       try {
-        this.db.run('UPDATE channels SET name = "General" WHERE id = "chan_general"');
+        this.db.run("UPDATE channels SET name = 'General' WHERE id = 'chan_general'");
       } catch (e) {}
     }
   }
