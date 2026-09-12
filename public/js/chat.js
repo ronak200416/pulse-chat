@@ -206,7 +206,7 @@ const Chat = {
     const tagEl = document.getElementById('current-room-tag');
 
     if (titleEl) titleEl.textContent = isChannel ? (isGeneral ? 'General' : `#${room.name}`) : room.name;
-    if (descEl) descEl.textContent = isGeneral ? 'Incognito Community • Messages & user identities are anonymous' : (room.desc || (isChannel ? 'Group conversation' : 'Direct message'));
+    if (descEl) descEl.textContent = isGeneral ? 'Global community chat for everyone' : (room.desc || (isChannel ? 'Group conversation' : 'Direct message'));
     if (iconEl) iconEl.textContent = room.icon || (isChannel ? '💬' : '👤');
     if (tagEl) tagEl.textContent = isChannel ? 'Channel' : 'Direct Message';
 
@@ -246,12 +246,12 @@ const Chat = {
 
     if (cdDesc) {
       cdDesc.textContent = isGeneral 
-        ? 'Town square for everyone. Messages and user identities remain completely anonymous across this workspace.'
+        ? 'Town square for everyone. Hang out and chat with the community.'
         : (room.desc || 'Private messaging space.');
     }
 
     if (cdPrivacy) {
-      cdPrivacy.textContent = isGeneral ? 'Incognito' : (isChannel ? 'Private Group' : 'Direct');
+      cdPrivacy.textContent = isGeneral ? 'Public' : (isChannel ? 'Private Group' : 'Direct');
     }
 
     if (onlineCountEl) {
@@ -260,11 +260,11 @@ const Chat = {
     }
 
     if (secSection) {
-      secSection.style.display = isGeneral ? 'block' : 'none';
+      secSection.style.display = 'none';
     }
 
     if (customMembersSection) {
-      customMembersSection.style.display = isGeneral ? 'none' : 'block';
+      customMembersSection.style.display = 'block';
     }
 
     // Fetch messages from SQLite
@@ -291,7 +291,7 @@ const Chat = {
         welcomeTitle.textContent = isGeneral ? 'Welcome to General!' : (this.activeRoom.type === 'channel' ? `Welcome to #${this.activeRoom.name}!` : `Conversation with ${this.activeRoom.name}`);
       }
       if (welcomeDesc) {
-        welcomeDesc.textContent = isGeneral ? 'Incognito Community • Messages & user identities are anonymous' : (this.activeRoom.desc || 'Send your first message to get started.');
+        welcomeDesc.textContent = isGeneral ? 'The town square — hang out, chat and say hello to everyone!' : (this.activeRoom.desc || 'Send your first message to get started.');
       }
     }
 
@@ -323,26 +323,18 @@ const Chat = {
     el.dataset.msgId = msg.id;
 
     const timeStr = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const isGeneral = this.activeRoom && (this.activeRoom.id === 'chan_general' || this.activeRoom.name === 'general');
     const isMe = Auth.user && Auth.user.id === msg.sender_id;
 
     let senderName = msg.sender_display_name || msg.sender_username || 'User';
     let avatarBg = msg.sender_avatar_color || '#6366f1';
     let initial = senderName.charAt(0).toUpperCase();
 
-    if (isGeneral) {
-      senderName = isMe ? 'You (Anonymous)' : 'Anonymous';
-      avatarBg = '#64748b';
-      initial = '🕶️';
-    }
-
     // Reply Bubble if quoting
     let replyHtml = '';
     if (msg.reply_to_id && msg.reply_to_sender) {
-      const replySender = isGeneral ? 'Anonymous' : msg.reply_to_sender;
       replyHtml = `
         <div class="reply-ref">
-          <span class="reply-ref-name">↪ ${this.escapeHtml(replySender)}:</span>
+          <span class="reply-ref-name">↪ ${this.escapeHtml(msg.reply_to_sender)}:</span>
           <span class="reply-ref-text">${this.escapeHtml(msg.reply_to_content || '')}</span>
         </div>
       `;
@@ -390,7 +382,7 @@ const Chat = {
     const reactionsHtml = this.renderReactionsHtml(msg.reactions || [], msg.id);
 
     // Action Bar HTML
-    const quoteSender = isGeneral ? 'Anonymous' : (msg.sender_display_name || msg.sender_username);
+    const quoteSender = msg.sender_display_name || msg.sender_username;
     const actionBarHtml = `
       <div class="message-action-bar">
         <button class="icon-btn-xs" title="React" onclick="Chat.showQuickReaction('${msg.id}')">😊</button>

@@ -273,6 +273,13 @@ const App = {
       });
     }
 
+    // Escape key to close friend modal
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modal && modal.classList.contains('active')) {
+        modal.classList.remove('active');
+      }
+    });
+
     tabBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         const tabId = btn.dataset.tab;
@@ -342,8 +349,13 @@ const App = {
 
     if (!query) {
       container.innerHTML = `
-        <div class="empty-tab-state">
-          <span class="empty-icon">🤝</span>
+        <div class="friend-empty-connect-state">
+          <div class="friend-connect-icon-box">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+            </svg>
+          </div>
           <h4>Connect with Friends</h4>
           <p>Type a username or unique ID above to search and send a friend request.</p>
         </div>
@@ -362,8 +374,10 @@ const App = {
 
       if (users.length === 0) {
         container.innerHTML = `
-          <div class="empty-tab-state">
-            <span class="empty-icon">🔍</span>
+          <div class="friend-empty-connect-state">
+            <div class="friend-connect-icon-box" style="background:rgba(239,68,68,0.08); border-color:rgba(239,68,68,0.2);">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            </div>
             <h4>No Users Found</h4>
             <p>No user matches "${this.escapeHtml(query)}". Check spelling or search by user ID.</p>
           </div>
@@ -373,28 +387,32 @@ const App = {
 
       container.innerHTML = '';
       users.forEach(u => {
+        const isOnline = this.onlineUserIds.has(u.id);
         const card = document.createElement('div');
         card.className = 'friend-card';
 
         let actionHtml = '';
         if (u.relationship === 'friends') {
-          actionHtml = `<button class="btn btn-xs btn-glass" onclick="App.openDirectMessage('${u.id}', '${this.escapeHtml(u.display_name || u.username)}')">💬 Message</button>`;
+          actionHtml = `<button class="btn-friend-msg" onclick="App.openDirectMessage('${u.id}', '${this.escapeHtml(u.display_name || u.username)}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> <span>Message</span></button>`;
         } else if (u.relationship === 'pending_sent') {
-          actionHtml = `<span class="badge-sm" style="color:var(--text-muted);font-size:0.75rem;">⏳ Request Sent</span>`;
+          actionHtml = `<span class="badge-sm" style="color:var(--text-muted);font-size:0.75rem;padding:6px 12px;background:rgba(255,255,255,0.03);border-radius:6px;">⏳ Request Sent</span>`;
         } else if (u.relationship === 'pending_received') {
-          actionHtml = `<button class="btn btn-xs btn-primary" onclick="App.acceptFriendRequest('${u.request_id}')">✓ Accept</button>`;
+          actionHtml = `<button class="btn-friend-msg" onclick="App.acceptFriendRequest('${u.request_id}')">✓ Accept</button>`;
         } else {
-          actionHtml = `<button class="btn btn-xs btn-primary" onclick="App.sendFriendRequest('${u.username}')">+ Add Friend</button>`;
+          actionHtml = `<button class="btn-friend-msg" onclick="App.sendFriendRequest('${u.username}')">+ Add Friend</button>`;
         }
 
         card.innerHTML = `
           <div class="friend-card-left">
-            <div class="friend-card-avatar" style="background-color: ${u.avatar_color || '#6366f1'}">
-              ${(u.display_name || u.username).charAt(0).toUpperCase()}
+            <div class="friend-card-avatar-wrap">
+              <div class="friend-card-avatar" style="background-color: ${u.avatar_color || '#333a56'}">
+                ${(u.display_name || u.username).charAt(0).toUpperCase()}
+              </div>
+              <span class="friend-card-status-dot ${isOnline ? 'online' : ''}"></span>
             </div>
             <div class="friend-card-info">
               <div class="friend-card-name">${this.escapeHtml(u.display_name || u.username)}</div>
-              <div class="friend-card-handle">@${this.escapeHtml(u.username)}</div>
+              <div class="friend-card-handle">@${this.escapeHtml(u.username)} • ${isOnline ? 'Online' : 'Offline'}</div>
               ${u.bio ? `<div class="friend-card-bio">${this.escapeHtml(u.bio)}</div>` : ''}
             </div>
           </div>
@@ -575,8 +593,10 @@ const App = {
           card.className = 'request-card';
           card.innerHTML = `
             <div class="friend-card-left">
-              <div class="friend-card-avatar" style="background-color:${req.avatar_color || '#6366f1'}">
-                ${(req.display_name || req.username).charAt(0).toUpperCase()}
+              <div class="friend-card-avatar-wrap">
+                <div class="friend-card-avatar" style="background-color:${req.avatar_color || '#333a56'}">
+                  ${(req.display_name || req.username).charAt(0).toUpperCase()}
+                </div>
               </div>
               <div class="friend-card-info">
                 <div class="friend-card-name">${this.escapeHtml(req.display_name || req.username)}</div>
@@ -584,8 +604,8 @@ const App = {
               </div>
             </div>
             <div class="friend-card-actions">
-              <button class="btn btn-xs btn-primary" onclick="App.acceptFriendRequest('${req.request_id}')">✓ Accept</button>
-              <button class="btn btn-xs btn-glass" onclick="App.rejectFriendRequest('${req.request_id}')">✕ Decline</button>
+              <button class="btn-friend-msg" onclick="App.acceptFriendRequest('${req.request_id}')">✓ Accept</button>
+              <button class="btn-friend-remove" onclick="App.rejectFriendRequest('${req.request_id}')">✕ Decline</button>
             </div>
           `;
           incomingContainer.appendChild(card);
@@ -604,8 +624,10 @@ const App = {
           card.className = 'request-card';
           card.innerHTML = `
             <div class="friend-card-left">
-              <div class="friend-card-avatar" style="background-color:${req.avatar_color || '#6366f1'}">
-                ${(req.display_name || req.username).charAt(0).toUpperCase()}
+              <div class="friend-card-avatar-wrap">
+                <div class="friend-card-avatar" style="background-color:${req.avatar_color || '#333a56'}">
+                  ${(req.display_name || req.username).charAt(0).toUpperCase()}
+                </div>
               </div>
               <div class="friend-card-info">
                 <div class="friend-card-name">${this.escapeHtml(req.display_name || req.username)}</div>
@@ -613,7 +635,7 @@ const App = {
               </div>
             </div>
             <div class="friend-card-actions">
-              <button class="btn btn-xs btn-glass" onclick="App.rejectFriendRequest('${req.request_id}')">Cancel</button>
+              <button class="btn-friend-remove" onclick="App.rejectFriendRequest('${req.request_id}')">Cancel</button>
             </div>
           `;
           outgoingContainer.appendChild(card);
@@ -624,12 +646,21 @@ const App = {
 
   renderFriendsTab() {
     const container = document.getElementById('friends-list-container');
+    const directContactsCount = document.getElementById('direct-contacts-count');
+    const countEl = document.getElementById('tab-friends-count');
+    if (directContactsCount) directContactsCount.textContent = this.friends.length;
+    if (countEl) countEl.textContent = this.friends.length;
+
     if (!container) return;
 
     if (this.friends.length === 0) {
       container.innerHTML = `
-        <div class="empty-tab-state">
-          <span class="empty-icon">👤</span>
+        <div class="friend-empty-connect-state">
+          <div class="friend-connect-icon-box">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle>
+            </svg>
+          </div>
           <h4>No Friends Added Yet</h4>
           <p>Search for users in the "Find & Add" tab to send friend requests.</p>
         </div>
@@ -644,8 +675,11 @@ const App = {
       card.className = 'friend-card';
       card.innerHTML = `
         <div class="friend-card-left">
-          <div class="friend-card-avatar" style="background-color:${f.avatar_color || '#6366f1'}">
-            ${(f.display_name || f.username).charAt(0).toUpperCase()}
+          <div class="friend-card-avatar-wrap">
+            <div class="friend-card-avatar" style="background-color:${f.avatar_color || '#333a56'}">
+              ${(f.display_name || f.username).charAt(0).toUpperCase()}
+            </div>
+            <span class="friend-card-status-dot ${isOnline ? 'online' : ''}"></span>
           </div>
           <div class="friend-card-info">
             <div class="friend-card-name">${this.escapeHtml(f.display_name || f.username)}</div>
@@ -654,8 +688,13 @@ const App = {
           </div>
         </div>
         <div class="friend-card-actions">
-          <button class="btn btn-xs btn-primary" onclick="App.openDirectMessage('${f.id}', '${this.escapeHtml(f.display_name || f.username)}')">💬 Message</button>
-          <button class="btn btn-xs btn-glass" onclick="App.removeFriend('${f.id}', '${this.escapeHtml(f.username)}')">✕ Remove</button>
+          <button class="btn-friend-msg" onclick="App.openDirectMessage('${f.id}', '${this.escapeHtml(f.display_name || f.username)}')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+            <span>Message</span>
+          </button>
+          <button class="btn-friend-remove" onclick="App.removeFriend('${f.id}', '${this.escapeHtml(f.username)}')">
+            ✕ <span>Remove</span>
+          </button>
         </div>
       `;
       container.appendChild(card);
@@ -875,7 +914,7 @@ const App = {
       name: 'General',
       type: 'channel',
       icon: '💬',
-      desc: 'Incognito Community • Messages & user identities are anonymous',
+      desc: 'Global community chat for everyone',
       created_by: 'system'
     };
     this.selectRoom({
@@ -883,7 +922,7 @@ const App = {
       name: 'General',
       type: 'channel',
       icon: general.icon || '💬',
-      desc: 'Incognito Community • Messages & user identities are anonymous',
+      desc: 'Global community chat for everyone',
       created_by: general.created_by || 'system'
     });
   },
@@ -1031,15 +1070,34 @@ const App = {
     const isCreator = this.currentRoom && Auth.user && this.currentRoom.created_by === Auth.user.id;
 
     if (isGeneral) {
-      if (memberCount) memberCount.textContent = '🕶️ Anonymous';
-      memberList.innerHTML = `
-        <div class="anonymous-notice-banner">
-          <span class="anon-icon">🕶️</span>
-          <h4>Incognito Community</h4>
-          <p>General chat is 100% anonymous. Online presence and user identities are private.</p>
-        </div>
-      `;
-      return;
+      try {
+        const res = await fetch('/api/users');
+        const data = await res.json();
+        const users = data.users || [];
+        if (memberCount) memberCount.textContent = users.length;
+
+        users.forEach(u => {
+          const isOnline = this.onlineUserIds.has(u.id);
+          const item = document.createElement('div');
+          item.className = 'member-item';
+          item.innerHTML = `
+            <div class="member-avatar" style="background-color:${u.avatar_color || '#6366f1'}">
+              ${(u.display_name || u.username).charAt(0).toUpperCase()}
+            </div>
+            <div style="flex:1;min-width:0;">
+              <div class="member-name">
+                ${this.escapeHtml(u.display_name || u.username)}
+              </div>
+              <div class="text-xs text-muted">@${this.escapeHtml(u.username)} • ${isOnline ? 'Online' : 'Offline'}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span class="status-indicator ${isOnline ? 'online' : 'offline'}"></span>
+            </div>
+          `;
+          memberList.appendChild(item);
+        });
+        return;
+      } catch (e) {}
     }
 
     if (isChannel && !isGeneral) {

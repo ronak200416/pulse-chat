@@ -626,20 +626,18 @@ io.on('connection', (socket) => {
 
   // Typing
   socket.on('typing', ({ roomId, username }) => {
-    const emittedUsername = roomId === 'chan_general' ? 'Someone' : username;
-    socket.to(roomId).emit('user_typing', { roomId, username: emittedUsername });
+    socket.to(roomId).emit('user_typing', { roomId, username });
   });
 
   socket.on('stop_typing', ({ roomId, username }) => {
-    const emittedUsername = roomId === 'chan_general' ? 'Someone' : username;
-    socket.to(roomId).emit('user_stop_typing', { roomId, username: emittedUsername });
+    socket.to(roomId).emit('user_stop_typing', { roomId, username });
   });
 
   // Reactions
   socket.on('add_reaction', async ({ messageId, emoji, roomId }) => {
     if (!currentUser) return;
     const reactionId = `rx_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-    const reactorName = roomId === 'chan_general' ? 'Anonymous' : (currentUser.display_name || currentUser.username);
+    const reactorName = currentUser.display_name || currentUser.username;
     const updatedReactions = await db.addReaction({
       id: reactionId,
       message_id: messageId,

@@ -117,8 +117,8 @@ async function runTests() {
   console.log(`  ✓ Alice has friend: @${aliceFriends.friends[0].username}`);
   console.log(`  ✓ Bob has friend: @${bobFriends.friends[0].username}`);
 
-  // Test 10: Anonymous General Chat Verification
-  console.log('\nTest 10: Verifying Anonymous General Chat behavior...');
+  // Test 10: General Chat Verification
+  console.log('\nTest 10: Verifying General Chat behavior...');
   const chanRes = await fetch(`${SERVER_URL}/api/channels`);
   const chanData = await chanRes.json();
   const generalChan = chanData.channels.find(c => c.id === 'chan_general' || c.name === 'general');
@@ -143,9 +143,9 @@ async function runTests() {
   socketBob.emit('join_room', generalChan.id);
   await new Promise(r => setTimeout(r, 300));
 
-  const anonMsgPromise = new Promise((resolve, reject) => {
+  const generalMsgPromise = new Promise((resolve, reject) => {
     socketBob.on('new_message', (msg) => {
-      if (msg.room_id === generalChan.id && msg.content.includes('Anonymous check')) {
+      if (msg.room_id === generalChan.id && msg.content.includes('Hello from Alice in general chat')) {
         resolve(msg);
       }
     });
@@ -155,22 +155,22 @@ async function runTests() {
   socketAlice.emit('send_message', {
     room_type: 'channel',
     room_id: generalChan.id,
-    content: 'Anonymous check in general chat!',
+    content: 'Hello from Alice in general chat! 🌟',
     message_type: 'text'
   });
 
-  const receivedAnonMsg = await anonMsgPromise;
+  const receivedMsg = await generalMsgPromise;
   console.log(`  ✓ Bob received message in General Chat:`, {
-    content: receivedAnonMsg.content,
-    sender_display_name: receivedAnonMsg.sender_display_name,
-    sender_username: receivedAnonMsg.sender_username,
-    sender_avatar_color: receivedAnonMsg.sender_avatar_color
+    content: receivedMsg.content,
+    sender_display_name: receivedMsg.sender_display_name,
+    sender_username: receivedMsg.sender_username,
+    sender_avatar_color: receivedMsg.sender_avatar_color
   });
 
-  if (receivedAnonMsg.sender_display_name !== 'Anonymous' || receivedAnonMsg.sender_username !== 'anonymous') {
-    throw new Error(`Expected sender to be 'Anonymous' in general chat, got ${receivedAnonMsg.sender_display_name}`);
+  if (receivedMsg.sender_username !== aliceUsername) {
+    throw new Error(`Expected sender to be '${aliceUsername}' in general chat, got ${receivedMsg.sender_username}`);
   }
-  console.log(`  ✓ Verified General Chat sender is 100% masked as 'Anonymous'!`);
+  console.log(`  ✓ Verified General Chat sender displays real user identity correctly!`);
 
   // Test 11: Direct Messaging between Accepted Friends
   console.log('\nTest 11: 1-on-1 Direct Messaging between Friends...');
@@ -197,9 +197,17 @@ async function runTests() {
   });
 
   const receivedDm = await dmPromise;
-  console.log(`  ✓ Alice received private DM from friend: "${receivedDm.content}"`);
+  // Cleanup: Delete test users & messages from database
+  try {
+    const db = require('./database');
+    await db.init();
+    await db.run('DELETE FROM reactions WHERE user_id = ? OR user_id = ?', [user1Data.user.id, user2Data.user.id]);
+    await db.run('DELETE FROM friend_requests WHERE sender_id = ? OR receiver_id = ?', [user1Data.user.id, user2Data.user.id]);
+    await db.run('DELETE FROM messages WHERE sender_id = ? OR recipient_id = ?', [user1Data.user.id, user2Data.user.id]);
+    await db.run('DELETE FROM messages WHERE content LIKE ?', ['%Hello from Alice%']);
+    await db.run('DELETE FROM users WHERE id = ? OR id = ?', [user1Data.user.id, user2Data.user.id]);
+  } catch (e) {}
 
-  // Cleanup: Delete test data and disconnect
   socketAlice.disconnect();
   socketBob.disconnect();
 
