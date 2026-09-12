@@ -1,6 +1,6 @@
 // Authentication Module
 const Auth = {
-  token: localStorage.getItem('pulse_token') || null,
+  token: localStorage.getItem('antra_token') || localStorage.getItem('pulse_token') || null,
   user: null,
   isUsernameAvailable: false,
   checkUsernameTimeout: null,
@@ -28,6 +28,20 @@ const Auth = {
 
     this.bindEvents();
     return this.checkExistingSession();
+  },
+
+  switchToRegister() {
+    const regTab = document.querySelector('.auth-tab-btn[data-tab="register-tab"]');
+    if (regTab) regTab.click();
+    const regUserInput = document.getElementById('reg-username');
+    if (regUserInput) regUserInput.focus();
+  },
+
+  switchToLogin() {
+    const loginTab = document.querySelector('.auth-tab-btn[data-tab="login-tab"]');
+    if (loginTab) loginTab.click();
+    const loginUserInput = document.getElementById('login-username');
+    if (loginUserInput) loginUserInput.focus();
   },
 
   bindEvents() {
@@ -136,7 +150,7 @@ const Auth = {
           });
           const data = await res.json();
           if (data.error) {
-            errEl.textContent = data.error;
+            errEl.innerHTML = `⚠️ ${data.error}<br><span style="font-size:0.8rem;color:#818cf8;cursor:pointer;text-decoration:underline;margin-top:4px;display:inline-block;" onclick="Auth.switchToRegister()">Don't have an account? Click here to register →</span>`;
             errEl.classList.add('active');
           } else if (data.token) {
             errEl.classList.remove('active');
@@ -286,6 +300,7 @@ const Auth = {
   handleAuthSuccess(data) {
     this.token = data.token;
     this.user = data.user;
+    localStorage.setItem('antra_token', data.token);
     localStorage.setItem('pulse_token', data.token);
     this.hideAuthModal();
     this.updateUserUI();
@@ -336,6 +351,7 @@ const Auth = {
   logout() {
     this.token = null;
     this.user = null;
+    localStorage.removeItem('antra_token');
     localStorage.removeItem('pulse_token');
     window.location.reload();
   }

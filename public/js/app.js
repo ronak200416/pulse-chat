@@ -733,9 +733,14 @@ const App = {
 
     this.socket.on('online_users_list', (userIds) => {
       this.onlineUserIds = new Set(userIds);
+      this.updateOnlinePresenceCount();
       this.renderUsersList();
       this.renderFriendsTab();
       this.renderRoomMembers();
+    });
+
+    this.socket.on('online_count', (count) => {
+      this.updateOnlinePresenceCount(count);
     });
 
     this.socket.on('user_presence', ({ userId, status }) => {
@@ -744,6 +749,7 @@ const App = {
       } else {
         this.onlineUserIds.delete(userId);
       }
+      this.updateOnlinePresenceCount();
       this.renderUsersList();
       this.renderFriendsTab();
       this.renderRoomMembers();
@@ -855,18 +861,26 @@ const App = {
     });
   },
 
+  updateOnlinePresenceCount(explicitCount) {
+    const count = typeof explicitCount === 'number' ? explicitCount : (this.onlineUserIds ? this.onlineUserIds.size : 1);
+    const countEl = document.getElementById('overview-online-count');
+    if (countEl) {
+      countEl.textContent = `${count} active`;
+    }
+  },
+
   selectGeneralRoom() {
-    const general = this.channels.find(c => c.id === 'chan_general' || c.name === 'general') || {
+    const general = this.channels.find(c => c.id === 'chan_general' || c.name.toLowerCase() === 'general') || {
       id: 'chan_general',
-      name: 'general',
+      name: 'General',
       type: 'channel',
       icon: '💬',
-      desc: 'The town square - 100% Anonymous community chat!',
+      desc: 'Incognito Community • Messages & user identities are anonymous',
       created_by: 'system'
     };
     this.selectRoom({
       id: general.id,
-      name: general.name,
+      name: 'General',
       type: 'channel',
       icon: general.icon || '💬',
       desc: 'Incognito Community • Messages & user identities are anonymous',

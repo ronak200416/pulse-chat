@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Pulse Chat — Real-Time Cross-Platform Messaging</title>
-  <meta name="description" content="Ultra-fast, cross-platform real-time messaging on PC and mobile with SQLite, voice notes, media sharing, and group management.">
+  <title>antra — Real-Time Anonymous & Private Messaging</title>
+  <meta name="description" content="Ultra-fast, private real-time messaging on PC and mobile with SQLite, zero-knowledge anonymous community chat, voice notes, media sharing, and friend requests.">
   
-  <!-- Google Fonts: Inter & Outfit -->
+  <!-- Google Fonts: Plus Jakarta Sans & Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="css/style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236366f1'><path d='M12 2C6.48 2 2 6.48 2 12c0 1.82.49 3.53 1.34 5L2 22l5.22-1.31C8.63 21.49 10.27 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm1 14h-2v-2h2v2zm0-4h-2V7h2v5z'/></svg>">
+  <link rel="icon" type="image/png" href="img/antra-logo.png">
 </head>
 <body class="theme-obsidian">
 
@@ -21,15 +21,11 @@
     <div class="modal-card auth-card">
       <div class="auth-header">
         <div class="brand-badge">
-          <div class="brand-icon-wrap">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-            </svg>
-          </div>
+          <img src="img/antra-logo.png" alt="antra" class="auth-brand-logo">
           <div class="live-dot pulse"></div>
         </div>
-        <h1 class="auth-title">Welcome to <span class="gradient-text">Pulse Chat</span></h1>
-        <p class="auth-subtitle">Fast, real-time cross-platform messaging</p>
+        <h1 class="auth-title">Welcome to <span class="gradient-text">antra</span></h1>
+        <p class="auth-subtitle">Fast, private & anonymous real-time messaging</p>
       </div>
 
       <!-- Auth Tabs -->
@@ -126,13 +122,11 @@
       <!-- Sidebar Brand -->
       <div class="sidebar-header">
         <div class="brand-container">
-          <div class="brand-logo">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-            </svg>
+          <div class="brand-logo-wrap">
+            <img src="img/antra-logo.png" alt="antra" class="brand-logo-img">
           </div>
           <div class="brand-text">
-            <h2>Pulse<span class="gradient-text">Chat</span></h2>
+            <h2 class="brand-title">antra</h2>
             <div class="server-badge">
               <span class="status-indicator online"></span>
               <span id="server-status-text">Connected</span>
@@ -152,15 +146,15 @@
           <div class="nav-section-header">
             <span class="nav-section-title">COMMUNITY CHAT</span>
           </div>
-          <div class="general-chat-card" id="btn-general-chat" role="button" tabindex="0" title="Switch to General Chat">
+          <div class="general-chat-card active" id="btn-general-chat" role="button" tabindex="0" title="Switch to General Chat">
             <div class="general-icon-wrap">
               <span class="general-icon">🌐</span>
               <span class="general-pulse-dot"></span>
             </div>
             <div class="general-info">
               <div class="general-title-row">
-                <span class="general-name"># general</span>
-                <span class="general-badge">GLOBAL</span>
+                <span class="general-name">General</span>
+                <span class="general-global-badge">GLOBAL</span>
               </div>
               <span class="general-desc">Town square for everyone</span>
             </div>
@@ -188,7 +182,7 @@
               <span class="badge-count friend-req-badge" id="friend-requests-badge" style="display:none;" title="Pending Friend Requests">0</span>
             </div>
             <button class="icon-btn-xs" id="btn-open-friend-modal" title="Find & Add Friends" aria-label="Find & Add Friends">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
             </button>
           </div>
           <div class="nav-list" id="users-list">
@@ -201,12 +195,12 @@
       <div class="sidebar-footer">
         <div class="user-profile-widget" id="user-profile-widget">
           <div class="avatar-wrap">
-            <div class="user-avatar" id="my-avatar">U</div>
+            <div class="user-avatar" id="my-avatar">R</div>
             <span class="status-indicator online" id="my-status-dot"></span>
           </div>
           <div class="user-info">
-            <span class="user-name" id="my-display-name">Username</span>
-            <span class="user-handle" id="my-handle">@handle</span>
+            <span class="user-name" id="my-display-name">Ronak12</span>
+            <span class="user-handle" id="my-handle">@ronak12</span>
           </div>
           <div class="profile-actions">
             <button class="icon-btn-sm" id="btn-edit-profile" title="Profile Settings">
@@ -228,20 +222,20 @@
           <button class="icon-btn mobile-menu-btn" id="btn-toggle-sidebar" aria-label="Open sidebar">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
           </button>
-          <div class="room-icon-badge" id="current-room-icon">#</div>
+          <div class="room-icon-badge" id="current-room-icon">💬</div>
           <div class="room-details">
             <div class="room-title-row">
-              <h2 id="current-room-title">general</h2>
+              <h2 id="current-room-title">General</h2>
               <span class="room-type-tag" id="current-room-tag">Channel</span>
             </div>
-            <p class="room-subtitle" id="current-room-desc">Welcome to the channel</p>
+            <p class="room-subtitle" id="current-room-desc">Incognito Community • Messages & user identities are anonymous</p>
           </div>
         </div>
 
         <div class="header-right">
           <!-- Live Search Bar -->
           <div class="search-box">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
             <input type="text" id="search-input" placeholder="Search messages...">
             <button id="btn-clear-search" class="clear-search-btn" style="display:none;">✕</button>
           </div>
@@ -261,9 +255,9 @@
             <span id="sound-icon">🔊</span>
           </button>
 
-          <!-- Toggle Right Sidebar (Members / Info) -->
-          <button class="icon-btn" id="btn-toggle-members" title="Channel Info & Members">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+          <!-- Toggle Right Sidebar (Members / Details) -->
+          <button class="icon-btn" id="btn-toggle-members" title="Channel Info & Details">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
           </button>
         </div>
       </header>
@@ -279,10 +273,13 @@
 
       <!-- Messages Feed Container -->
       <div class="messages-container custom-scroll" id="messages-container">
+        <!-- Center Welcome Card (Matches Image 1) -->
         <div class="chat-welcome-banner" id="chat-welcome-banner">
-          <div class="welcome-icon">💬</div>
-          <h3 id="welcome-title">Welcome to #general!</h3>
-          <p id="welcome-desc">This is the beginning of the conversation.</p>
+          <div class="welcome-icon-box">
+            <span class="welcome-icon">💬</span>
+          </div>
+          <h3 id="welcome-title">Welcome to General!</h3>
+          <p id="welcome-desc">Incognito Community • Messages & user identities are anonymous</p>
         </div>
 
         <div class="messages-feed" id="messages-feed">
@@ -350,7 +347,7 @@
           </button>
 
           <button class="send-btn" id="btn-send-message" title="Send Message">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
           </button>
         </div>
 
@@ -366,27 +363,35 @@
       </footer>
     </main>
 
-    <!-- RIGHT SIDEBAR (MEMBERS & DETAILS) -->
+    <!-- RIGHT SIDEBAR (CHANNEL DETAILS MATCHING IMAGE 1) -->
     <aside id="app-right-sidebar" class="app-right-sidebar">
       <div class="right-sidebar-header">
-        <h3>Group Details</h3>
-        <button class="icon-btn-xs" id="btn-close-right-sidebar">✕</button>
+        <div class="right-header-title-wrap">
+          <h3 id="right-sidebar-title">General</h3>
+          <span class="channel-details-pill" id="right-sidebar-subtitle">Channel Details</span>
+        </div>
+        <button class="icon-btn-xs" id="btn-close-right-sidebar" aria-label="Close sidebar">✕</button>
       </div>
 
       <div class="right-sidebar-content custom-scroll">
-        <!-- Room Info Card -->
-        <div class="info-card">
-          <div class="info-card-header">
-            <div class="info-icon" id="info-room-icon">💬</div>
-            <div>
-              <h4 id="info-room-name">#general</h4>
-              <span class="text-muted" id="info-room-created">Channel</span>
+        <!-- Room Info Card (Matches Image 1) -->
+        <div class="channel-details-card" id="channel-details-card">
+          <div class="cd-header-row">
+            <div class="cd-icon-box" id="cd-icon-box">
+              <span class="cd-icon">🌐</span>
+            </div>
+            <div class="cd-title-wrap">
+              <div class="cd-name-row">
+                <h4 id="cd-name">General</h4>
+                <span class="general-global-badge" id="cd-badge">GLOBAL</span>
+              </div>
+              <span class="cd-sub" id="cd-sub">Public Community Channel</span>
             </div>
           </div>
-          <p class="info-card-desc" id="info-room-desc">Channel description</p>
+          <p class="cd-desc" id="cd-desc">Town square for everyone. Messages and user identities remain completely anonymous across this workspace.</p>
 
-          <!-- Action buttons inside info card -->
-          <div class="group-mgmt-buttons" style="margin-top: 12px; display: flex; flex-direction: column; gap: 6px;">
+          <!-- Action buttons inside info card for custom groups -->
+          <div class="group-mgmt-buttons" id="group-mgmt-buttons" style="margin-top: 12px; display: none; flex-direction: column; gap: 6px;">
             <button class="btn btn-sm btn-danger btn-block" id="btn-sidebar-delete-group" style="display:none;">
               🗑️ Delete Group
             </button>
@@ -396,11 +401,57 @@
           </div>
         </div>
 
-        <!-- Members in this room -->
-        <div class="member-group">
-          <span class="member-group-title">MEMBERS (<span id="member-count">0</span>)</span>
+        <!-- Section: Channel Overview (Matches Image 1) -->
+        <div class="cd-section">
+          <div class="cd-section-header">
+            <span class="cd-section-title">CHANNEL OVERVIEW</span>
+            <span class="cd-status-badge" id="cd-status-badge">status: active</span>
+          </div>
+
+          <div class="cd-overview-table">
+            <div class="cd-overview-row">
+              <span class="cd-row-label">Privacy Mode</span>
+              <span class="cd-row-val" id="cd-privacy-val">Incognito</span>
+            </div>
+            <div class="cd-overview-row">
+              <span class="cd-row-label">Online Members</span>
+              <span class="cd-row-val cd-online-val">
+                <span class="active-dot-green"></span>
+                <span id="overview-online-count">1 active</span>
+              </span>
+            </div>
+            <div class="cd-overview-row">
+              <span class="cd-row-label">Encryption</span>
+              <span class="cd-row-val cd-e2e-val">End-to-End</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section: Security & Policy Card (Matches Image 1) -->
+        <div class="cd-section" id="security-policy-section">
+          <div class="cd-section-header">
+            <span class="cd-section-title">SECURITY & POLICY</span>
+          </div>
+
+          <div class="security-policy-card">
+            <div class="security-shield-wrap">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                <path d="M9 12l2 2 4-4"></path>
+              </svg>
+            </div>
+            <h5 class="security-title">Zero-Knowledge Identities</h5>
+            <p class="security-desc">General chat is fully protected. User activity, logs, and personal identifiers are never stored.</p>
+          </div>
+        </div>
+
+        <!-- Custom Channel / Direct Members list container -->
+        <div class="cd-section" id="custom-members-section" style="display:none;">
+          <div class="cd-section-header">
+            <span class="cd-section-title">MEMBERS (<span id="member-count">0</span>)</span>
+          </div>
           <div class="member-list" id="room-member-list">
-            <!-- Members list -->
+            <!-- Dynamically populated -->
           </div>
         </div>
       </div>
@@ -551,7 +602,7 @@
     </div>
   </div>
 
-  <!-- 3. IMAGE LIGHTBOX MODAL -->
+  <!-- 4. IMAGE LIGHTBOX MODAL -->
   <div id="lightbox-modal" class="lightbox-modal" style="display:none;">
     <div class="lightbox-backdrop" id="lightbox-backdrop"></div>
     <div class="lightbox-content">

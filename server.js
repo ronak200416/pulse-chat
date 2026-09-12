@@ -560,7 +560,8 @@ io.on('connection', (socket) => {
       });
 
       const activeIds = Array.from(userSocketMap.keys());
-      socket.emit('online_users_list', activeIds);
+      io.emit('online_users_list', activeIds);
+      io.emit('online_count', activeIds.length);
     } catch (err) {
       console.warn('Socket auth failed:', err.message);
     }
@@ -691,6 +692,9 @@ io.on('connection', (socket) => {
         userSocketMap.delete(uId);
         await db.updateUserStatus(uId, 'offline');
         io.emit('user_presence', { userId: uId, status: 'offline', last_seen: Date.now() });
+        const activeIds = Array.from(userSocketMap.keys());
+        io.emit('online_users_list', activeIds);
+        io.emit('online_count', activeIds.length);
       }
     }
   });
@@ -702,7 +706,7 @@ async function startServer() {
   server.listen(PORT, '0.0.0.0', () => {
     const lanIp = getLanIp();
     console.log('\n==================================================');
-    console.log('⚡  PULSE CHAT SERVER IS LIVE!  ⚡');
+    console.log('⚡  ANTRA MESSAGING SERVER IS LIVE!  ⚡');
     console.log('==================================================');
     console.log(`🏠 Local URL:         http://localhost:${PORT}`);
     console.log(`📱 LAN / Mobile:      http://${lanIp}:${PORT}`);

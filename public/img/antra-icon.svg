@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Background Dark Obsidian -->
+  <rect width="512" height="512" rx="100" fill="#0d111a"/>
+  
+  <!-- Stylized "A" with Lightning Notch -->
+  <path d="M 256 95 L 382 355 M 256 95 L 195 220 L 140 220 L 190 270 L 145 355" 
+        stroke="#ffffff" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+        
+  <!-- Intersecting Wave Ribbon -->
+  <path d="M 180 268 C 220 215, 270 215, 310 268 C 345 315, 395 315, 435 255" 
+        stroke="#7c8cf8" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

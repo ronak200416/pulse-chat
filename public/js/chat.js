@@ -196,24 +196,76 @@ const Chat = {
     this.activeRoom = room;
     this.clearReply();
 
+    const isGeneral = room.id === 'chan_general' || (room.name && room.name.toLowerCase() === 'general');
+    const isChannel = room.type === 'channel';
+
     // Update Header UI
     const titleEl = document.getElementById('current-room-title');
     const descEl = document.getElementById('current-room-desc');
     const iconEl = document.getElementById('current-room-icon');
     const tagEl = document.getElementById('current-room-tag');
 
-    if (titleEl) titleEl.textContent = room.type === 'channel' ? `#${room.name}` : room.name;
-    if (descEl) descEl.textContent = room.desc || (room.type === 'channel' ? 'Channel conversation' : 'Direct message');
-    if (iconEl) iconEl.textContent = room.icon || (room.type === 'channel' ? '#' : '👤');
-    if (tagEl) tagEl.textContent = room.type === 'channel' ? 'Channel' : 'Direct Message';
+    if (titleEl) titleEl.textContent = isChannel ? (isGeneral ? 'General' : `#${room.name}`) : room.name;
+    if (descEl) descEl.textContent = isGeneral ? 'Incognito Community • Messages & user identities are anonymous' : (room.desc || (isChannel ? 'Group conversation' : 'Direct message'));
+    if (iconEl) iconEl.textContent = room.icon || (isChannel ? '💬' : '👤');
+    if (tagEl) tagEl.textContent = isChannel ? 'Channel' : 'Direct Message';
 
-    // Update Right Sidebar info
-    const infoName = document.getElementById('info-room-name');
-    const infoDesc = document.getElementById('info-room-desc');
-    const infoIcon = document.getElementById('info-room-icon');
-    if (infoName) infoName.textContent = room.type === 'channel' ? `#${room.name}` : room.name;
-    if (infoDesc) infoDesc.textContent = room.desc || '';
-    if (infoIcon) infoIcon.textContent = room.icon || (room.type === 'channel' ? '💬' : '👤');
+    // Update Right Sidebar (Matches Image 1)
+    const rightTitle = document.getElementById('right-sidebar-title');
+    const rightSub = document.getElementById('right-sidebar-subtitle');
+    const cdName = document.getElementById('cd-name');
+    const cdBadge = document.getElementById('cd-badge');
+    const cdSub = document.getElementById('cd-sub');
+    const cdDesc = document.getElementById('cd-desc');
+    const cdIcon = document.getElementById('cd-icon-box');
+    const cdPrivacy = document.getElementById('cd-privacy-val');
+    const onlineCountEl = document.getElementById('overview-online-count');
+    const secSection = document.getElementById('security-policy-section');
+    const customMembersSection = document.getElementById('custom-members-section');
+
+    if (rightTitle) rightTitle.textContent = isGeneral ? 'General' : (isChannel ? `#${room.name}` : room.name);
+    if (rightSub) rightSub.textContent = isChannel ? 'Channel Details' : 'Direct Message Details';
+    if (cdName) cdName.textContent = isGeneral ? 'General' : (isChannel ? `#${room.name}` : room.name);
+    
+    if (cdBadge) {
+      if (isGeneral) {
+        cdBadge.textContent = 'GLOBAL';
+        cdBadge.style.display = 'inline-block';
+      } else if (isChannel) {
+        cdBadge.textContent = 'GROUP';
+        cdBadge.style.display = 'inline-block';
+      } else {
+        cdBadge.textContent = 'DIRECT';
+        cdBadge.style.display = 'inline-block';
+      }
+    }
+
+    if (cdSub) {
+      cdSub.textContent = isGeneral ? 'Public Community Channel' : (isChannel ? 'Private Group Channel' : 'Encrypted Direct Message');
+    }
+
+    if (cdDesc) {
+      cdDesc.textContent = isGeneral 
+        ? 'Town square for everyone. Messages and user identities remain completely anonymous across this workspace.'
+        : (room.desc || 'Private messaging space.');
+    }
+
+    if (cdPrivacy) {
+      cdPrivacy.textContent = isGeneral ? 'Incognito' : (isChannel ? 'Private Group' : 'Direct');
+    }
+
+    if (onlineCountEl) {
+      const activeCount = App.onlineUserIds ? App.onlineUserIds.size : 1;
+      onlineCountEl.textContent = `${activeCount} active`;
+    }
+
+    if (secSection) {
+      secSection.style.display = isGeneral ? 'block' : 'none';
+    }
+
+    if (customMembersSection) {
+      customMembersSection.style.display = isGeneral ? 'none' : 'block';
+    }
 
     // Fetch messages from SQLite
     try {
@@ -234,8 +286,13 @@ const Chat = {
     const welcomeDesc = document.getElementById('welcome-desc');
 
     if (this.activeRoom) {
-      if (welcomeTitle) welcomeTitle.textContent = this.activeRoom.type === 'channel' ? `Welcome to #${this.activeRoom.name}!` : `Conversation with ${this.activeRoom.name}`;
-      if (welcomeDesc) welcomeDesc.textContent = this.activeRoom.desc || 'Send your first message to get started.';
+      const isGeneral = this.activeRoom.id === 'chan_general' || (this.activeRoom.name && this.activeRoom.name.toLowerCase() === 'general');
+      if (welcomeTitle) {
+        welcomeTitle.textContent = isGeneral ? 'Welcome to General!' : (this.activeRoom.type === 'channel' ? `Welcome to #${this.activeRoom.name}!` : `Conversation with ${this.activeRoom.name}`);
+      }
+      if (welcomeDesc) {
+        welcomeDesc.textContent = isGeneral ? 'Incognito Community • Messages & user identities are anonymous' : (this.activeRoom.desc || 'Send your first message to get started.');
+      }
     }
 
     let lastDateStr = null;

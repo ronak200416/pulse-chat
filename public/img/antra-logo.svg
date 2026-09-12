@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Background -->
+  <rect width="512" height="512" fill="#0d111a"/>
+  
+  <!-- Stylized "A" with Lightning Notch -->
+  <path d="M 256 90 L 376 335 M 256 90 L 198 208 L 145 208 L 192 258 L 148 335" 
+        stroke="#ffffff" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+        
+  <!-- Intersecting Wave Ribbon -->
+  <path d="M 185 255 C 220 205, 268 205, 305 255 C 340 305, 388 305, 425 248" 
+        stroke="#7c8cf8" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+        
+  <!-- antra Text -->
+  <text x="256" y="445" 
+        font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" 
+        font-size="108" 
+        font-weight="800" 
+        letter-spacing="-2px" 
+        fill="#ffffff" 
+        text-anchor="middle">antra</text>
+</svg>
