@@ -7,6 +7,10 @@ const Auth = {
 
   init() {
     this.modal = document.getElementById('auth-modal');
+    this.viewLogin = document.getElementById('auth-view-login');
+    this.viewRegister = document.getElementById('auth-view-register');
+
+    // Legacy tabs if any
     this.tabs = document.querySelectorAll('.auth-tab-btn');
     this.panels = document.querySelectorAll('.auth-form-panel');
 
@@ -16,9 +20,18 @@ const Auth = {
 
     // Registration UI Elements
     this.regUsernameInput = document.getElementById('reg-username');
+    this.regDisplayNameInput = document.getElementById('reg-display-name');
+    this.regBioInput = document.getElementById('reg-bio');
     this.usernameStatusEl = document.getElementById('username-availability-status');
     this.regColorPicker = document.getElementById('reg-color-picker');
+    this.loginColorPicker = document.getElementById('login-color-picker');
     this.selectedRegColor = '#6366f1';
+
+    // Live Preview Elements
+    this.previewAvatar = document.getElementById('preview-avatar');
+    this.previewDisplayName = document.getElementById('preview-display-name');
+    this.previewHandle = document.getElementById('preview-handle');
+    this.previewBio = document.getElementById('preview-bio');
 
     // Profile Modal
     this.profileModal = document.getElementById('profile-modal');
@@ -31,21 +44,135 @@ const Auth = {
   },
 
   switchToRegister() {
-    const regTab = document.querySelector('.auth-tab-btn[data-tab="register-tab"]');
-    if (regTab) regTab.click();
+    if (this.viewLogin) this.viewLogin.style.display = 'none';
+    if (this.viewRegister) {
+      this.viewRegister.style.display = 'flex';
+      this.viewRegister.classList.add('active');
+    }
     const regUserInput = document.getElementById('reg-username');
     if (regUserInput) regUserInput.focus();
+    this.updateLivePreview();
   },
 
   switchToLogin() {
-    const loginTab = document.querySelector('.auth-tab-btn[data-tab="login-tab"]');
-    if (loginTab) loginTab.click();
+    if (this.viewRegister) {
+      this.viewRegister.style.display = 'none';
+      this.viewRegister.classList.remove('active');
+    }
+    if (this.viewLogin) {
+      this.viewLogin.style.display = 'flex';
+      this.viewLogin.classList.add('active');
+    }
     const loginUserInput = document.getElementById('login-username');
     if (loginUserInput) loginUserInput.focus();
   },
 
+  updateLivePreview() {
+    const username = this.regUsernameInput ? this.regUsernameInput.value.trim() : '';
+    const displayName = this.regDisplayNameInput ? this.regDisplayNameInput.value.trim() : '';
+    const bio = this.regBioInput ? this.regBioInput.value.trim() : '';
+
+    if (this.previewDisplayName) {
+      this.previewDisplayName.textContent = displayName || username || 'Ronak Mishra';
+    }
+    if (this.previewHandle) {
+      this.previewHandle.textContent = `@${username || 'ronak_dev'}`;
+    }
+    if (this.previewBio) {
+      this.previewBio.textContent = bio ? `"${bio}"` : '"Building aesthetic interfaces with modern precision."';
+    }
+    if (this.previewAvatar) {
+      const initial = (displayName || username || 'R').charAt(0).toUpperCase();
+      this.previewAvatar.textContent = initial;
+      this.previewAvatar.style.backgroundColor = this.selectedRegColor || '#6366f1';
+    }
+  },
+
   bindEvents() {
-    // Tab switching
+    // Password visibility toggle helpers
+    const setupPasswordToggle = (btnId, inputId) => {
+      const btn = document.getElementById(btnId);
+      const input = document.getElementById(inputId);
+      if (!btn || !input) return;
+
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const isPassword = input.type === 'password';
+        input.type = isPassword ? 'text' : 'password';
+
+        const openIcon = btn.querySelector('.eye-icon-open');
+        const closedIcon = btn.querySelector('.eye-icon-closed');
+        if (openIcon && closedIcon) {
+          openIcon.style.display = isPassword ? 'none' : 'block';
+          closedIcon.style.display = isPassword ? 'block' : 'none';
+        }
+      });
+    };
+
+    setupPasswordToggle('btn-toggle-login-pwd', 'login-password');
+    setupPasswordToggle('btn-toggle-reg-pwd', 'reg-password');
+
+    // Switch between Login & Register views
+    const btnGotoRegister = document.getElementById('btn-goto-register');
+    const btnGotoLogin = document.getElementById('btn-goto-login');
+
+    if (btnGotoRegister) {
+      btnGotoRegister.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.switchToRegister();
+      });
+    }
+
+    if (btnGotoLogin) {
+      btnGotoLogin.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.switchToLogin();
+      });
+    }
+
+    // Live preview event listeners on register inputs
+    if (this.regUsernameInput) {
+      this.regUsernameInput.addEventListener('input', () => this.updateLivePreview());
+    }
+    if (this.regDisplayNameInput) {
+      this.regDisplayNameInput.addEventListener('input', () => this.updateLivePreview());
+    }
+    if (this.regBioInput) {
+      this.regBioInput.addEventListener('input', () => this.updateLivePreview());
+    }
+
+    // Login color dot picker
+    if (this.loginColorPicker) {
+      const loginColorName = document.getElementById('login-color-name');
+      this.loginColorPicker.addEventListener('click', (e) => {
+        const circle = e.target.closest('.auth-color-circle');
+        if (circle) {
+          this.loginColorPicker.querySelectorAll('.auth-color-circle').forEach(c => c.classList.remove('active'));
+          circle.classList.add('active');
+          const colorName = circle.getAttribute('data-name');
+          if (loginColorName && colorName) loginColorName.textContent = colorName;
+        }
+      });
+    }
+
+    // Register color pills bar picker
+    if (this.regColorPicker) {
+      const regColorName = document.getElementById('reg-color-name');
+      this.regColorPicker.addEventListener('click', (e) => {
+        const pill = e.target.closest('.auth-color-pill');
+        if (pill) {
+          this.regColorPicker.querySelectorAll('.auth-color-pill').forEach(p => p.classList.remove('active'));
+          pill.classList.add('active');
+          const color = pill.getAttribute('data-color');
+          const colorName = pill.getAttribute('data-name');
+          if (color) this.selectedRegColor = color;
+          if (regColorName && colorName) regColorName.textContent = colorName;
+          this.updateLivePreview();
+        }
+      });
+    }
+
+    // Legacy tab switching
     this.tabs.forEach(tab => {
       tab.addEventListener('click', () => {
         const targetId = tab.getAttribute('data-tab');
@@ -56,17 +183,6 @@ const Auth = {
         if (activePanel) activePanel.classList.add('active');
       });
     });
-
-    // Register avatar color picker
-    if (this.regColorPicker) {
-      this.regColorPicker.addEventListener('click', (e) => {
-        if (e.target.classList.contains('color-dot')) {
-          this.regColorPicker.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
-          e.target.classList.add('active');
-          this.selectedRegColor = e.target.getAttribute('data-color');
-        }
-      });
-    }
 
     // Live Username Availability Check
     if (this.regUsernameInput && this.usernameStatusEl) {

@@ -16,97 +16,236 @@
 </head>
 <body class="theme-obsidian">
 
-  <!-- ================= AUTH MODAL OVERLAY ================= -->
-  <div id="auth-modal" class="modal-overlay active">
-    <div class="modal-card auth-card">
-      <div class="auth-header">
-        <div class="brand-badge">
-          <img src="img/antra-logo.png" alt="antra" class="auth-brand-logo">
-          <div class="live-dot pulse"></div>
+  <!-- ================= AUTH MODAL OVERLAY (FULL SCREEN MATCHING IMAGES) ================= -->
+  <div id="auth-modal" class="auth-fullscreen-overlay active">
+    
+    <!-- 1. LOGIN CONTAINER -->
+    <div id="auth-view-login" class="auth-split-card active">
+      <!-- Left Panel: Branding & Story -->
+      <div class="auth-panel auth-panel-left">
+        <div class="auth-panel-inner">
+          <div class="auth-brand-row">
+            <div class="auth-brand-icon-box">
+              <img src="img/antra-logo.png" alt="antra" class="auth-mini-logo">
+            </div>
+            <div class="auth-brand-meta">
+              <span class="auth-brand-name">ANTRA</span>
+            </div>
+          </div>
+
+          <div class="auth-left-hero">
+            <br></br>
+            <br></br>
+            <h1 class="auth-hero-title">Welcome to <strong>antra</strong></h1>
+            <div class="auth-hero-divider"></div>
+          <p class="auth-hero-desc">
+  Minimalism is the new aesthetic.<br>
+  Experience minimalist, end-to-end encrypted messaging designed for pure focus, privacy, and architectural serenity.
+</p>
+
+          </div>
+
+          <div class="auth-left-footer"></div>
         </div>
-        <h1 class="auth-title">Welcome to <span class="gradient-text">antra</span></h1>
-        <p class="auth-subtitle">Fast, private & anonymous real-time messaging</p>
       </div>
 
-      <!-- Auth Tabs -->
-      <div class="auth-tabs">
-        <button type="button" class="auth-tab-btn active" data-tab="login-tab">🔑 Log In</button>
-        <button type="button" class="auth-tab-btn" data-tab="register-tab">✨ Create Account</button>
+      <!-- Right Panel: Session Verification Form -->
+      <div class="auth-panel auth-panel-right">
+        <div class="auth-panel-inner">
+          <div class="auth-form-header" style="margin-top: 20px;">
+            <div class="auth-icon-badge">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.8">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                <path d="M2 17l10 5 10-5"></path>
+                <path d="M2 12l10 5 10-5"></path>
+              </svg>
+            </div>
+            <h2 class="auth-section-title">SESSION VERIFICATION</h2>
+          </div>
+
+          <form id="login-form" class="auth-minimal-form">
+            <div class="auth-underline-group">
+              <span class="auth-input-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+              </span>
+              <input type="text" id="login-username" placeholder="Username" required autocomplete="username" value="ronak12">
+            </div>
+
+            <div class="auth-underline-group">
+              <span class="auth-input-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+              </span>
+              <input type="password" id="login-password" placeholder="Password" required autocomplete="current-password">
+              <button type="button" class="auth-password-toggle-btn" id="btn-toggle-login-pwd" title="Show/Hide Password" aria-label="Toggle password visibility">
+                <svg class="eye-icon-open" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                <svg class="eye-icon-closed" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+              </button>
+            </div>
+
+            <!-- Color Accent Picker -->
+            <div class="auth-accent-picker-wrap">
+              <div class="auth-accent-label-row">
+                <span class="auth-sub-label">PERSONALIZE ACCENT COLOR</span>
+                <span class="auth-selected-color-name" id="login-color-name">Mono Classic</span>
+              </div>
+              <div class="auth-color-dots-bar" id="login-color-picker">
+                <button type="button" class="auth-color-circle active" data-color="#e2e8f0" data-name="Mono Classic" style="background:#e2e8f0;"></button>
+                <button type="button" class="auth-color-circle" data-color="#6366f1" data-name="Indigo Pulse" style="background:#6366f1;"></button>
+                <button type="button" class="auth-color-circle" data-color="#10b981" data-name="Emerald Mint" style="background:#10b981;"></button>
+                <button type="button" class="auth-color-circle" data-color="#a855f7" data-name="Cyber Violet" style="background:#a855f7;"></button>
+                <button type="button" class="auth-color-circle" data-color="#f59e0b" data-name="Amber Gold" style="background:#f59e0b;"></button>
+              </div>
+            </div>
+
+            <div id="login-error" class="auth-alert-msg"></div>
+
+            <button type="submit" class="btn-auth-primary" id="btn-login-submit">
+              <span>LOGIN</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
+
+            <div class="auth-switch-prompt">
+              <span>Don't have an account?</span>
+              <button type="button" class="auth-inline-link" id="btn-goto-register">Register here</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. REGISTRATION CONTAINER -->
+    <div id="auth-view-register" class="auth-split-card" style="display:none;">
+      <!-- Left Panel: Identity Creation Story & Live Preview -->
+      <div class="auth-panel auth-panel-left">
+        <div class="auth-panel-inner">
+          <div class="auth-brand-row">
+            <div class="auth-brand-icon-box">
+              <img src="img/antra-logo.png" alt="antra" class="auth-mini-logo">
+            </div>
+            <div class="auth-brand-meta">
+              <span class="auth-brand-name">ANTRA</span>
+            </div>
+          </div>
+
+          <div class="auth-left-hero">
+            <br></br>
+            <h1 class="auth-hero-title">Join the <strong>antra</strong> frequency</h1>
+            <p class="auth-hero-desc" style="margin-top:12px;">
+              Create your custom cryptographic alias. Your identity is zero-knowledge protected with end-to-end local key generation.
+            </p>
+          </div>
+
+          <!-- Live Alias Preview Card -->
+          <div class="auth-live-alias-card">
+            <div class="auth-preview-header">LIVE ALIAS PREVIEW</div>
+            <div class="auth-preview-user-row">
+              <div class="auth-preview-avatar" id="preview-avatar" style="background-color: #6366f1;">
+                R
+              </div>
+              <div class="auth-preview-user-meta">
+                <span class="auth-preview-name" id="preview-display-name">Ronak Mishra</span>
+                <span class="auth-preview-handle" id="preview-handle">@ronak_dev</span>
+              </div>
+            </div>
+            <p class="auth-preview-bio" id="preview-bio">"Building aesthetic interfaces with modern precision."</p>
+          </div>
+
+          <div class="auth-switch-left-prompt">
+            <span>Already registered?</span>
+            <button type="button" class="auth-inline-link" id="btn-goto-login">Sign into existing account</button>
+          </div>
+
+          <div class="auth-left-footer"></div>
+        </div>
       </div>
 
-      <!-- Tab 1: Login -->
-      <form id="login-form" class="auth-form-panel active">
-        <div class="form-group">
-          <label for="login-username">Username</label>
-          <div class="input-icon-wrap">
-            <span class="input-icon">@</span>
-            <input type="text" id="login-username" placeholder="your_username" required autocomplete="username">
+      <!-- Right Panel: Create your alias Form -->
+      <div class="auth-panel auth-panel-right">
+        <div class="auth-panel-inner">
+          <div class="auth-reg-heading-wrap" style="margin-top: 10px;">
+            <h2 class="auth-reg-title">Create your alias</h2>
+            <p class="auth-reg-sub">Fill out the credentials below to enter the workspace</p>
           </div>
-        </div>
-        <div class="form-group">
-          <label for="login-password">Password</label>
-          <div class="input-icon-wrap">
-            <span class="input-icon">🔒</span>
-            <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password">
-          </div>
-        </div>
-        <div id="login-error" class="error-msg"></div>
-        <button type="submit" class="btn btn-primary btn-block btn-lg" id="btn-login-submit">
-          <span>Sign In to Chat</span>
-        </button>
-      </form>
 
-      <!-- Tab 2: Register -->
-      <form id="register-form" class="auth-form-panel">
-        <div class="form-group">
-          <label for="reg-username">Choose Unique Username</label>
-          <div class="input-icon-wrap">
-            <span class="input-icon">@</span>
-            <input type="text" id="reg-username" placeholder="e.g. cyber_ninja, alex-99" required autocomplete="username" maxlength="30">
-          </div>
-          <!-- Live username check message -->
-          <div id="username-availability-status" class="input-feedback-msg">
-            Letters, numbers, underscores, and dashes (min 3 chars)
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="reg-display-name">Display Name</label>
-          <div class="input-icon-wrap">
-            <span class="input-icon">👤</span>
-            <input type="text" id="reg-display-name" placeholder="How friends see you" required maxlength="30">
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="reg-password">Password</label>
-          <div class="input-icon-wrap">
-            <span class="input-icon">🔒</span>
-            <input type="password" id="reg-password" placeholder="At least 6 characters" required autocomplete="new-password" minlength="6">
-          </div>
-          <div class="input-hint-msg">Combination of letters, numbers & characters</div>
-        </div>
-        <div class="form-group">
-          <label>Pick Avatar Color</label>
-          <div class="color-picker-row" id="reg-color-picker">
-            <button type="button" class="color-dot active" data-color="#6366f1" style="background:#6366f1"></button>
-            <button type="button" class="color-dot" data-color="#ec4899" style="background:#ec4899"></button>
-            <button type="button" class="color-dot" data-color="#8b5cf6" style="background:#8b5cf6"></button>
-            <button type="button" class="color-dot" data-color="#10b981" style="background:#10b981"></button>
-            <button type="button" class="color-dot" data-color="#f59e0b" style="background:#f59e0b"></button>
-            <button type="button" class="color-dot" data-color="#06b6d4" style="background:#06b6d4"></button>
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="reg-bio">Bio / Status (Optional)</label>
-          <input type="text" id="reg-bio" placeholder="e.g. Building cool things 🚀" maxlength="120">
-        </div>
-        <div id="reg-error" class="error-msg"></div>
-        <button type="submit" class="btn btn-primary btn-block btn-lg" id="btn-reg-submit">
-          <span>Create Account & Enter</span>
-        </button>
-      </form>
+          <form id="register-form" class="auth-minimal-form">
+            <!-- 2-Column Row for Username & Display Name -->
+            <div class="auth-input-grid-2col">
+              <div class="auth-col-group">
+                <div class="auth-col-label-row">
+                  <label for="reg-username">UNIQUE USERNAME</label>
+                </div>
+                <div class="auth-underline-group">
+                  <span class="auth-input-icon" style="font-family:monospace; font-size:1rem; font-weight:700;">@</span>
+                  <input type="text" id="reg-username" placeholder="ronak_dev" required maxlength="30" autocomplete="username">
+                </div>
+                <div id="username-availability-status" class="input-feedback-msg" style="font-size:0.7rem; min-height:16px;">
+                  Letters, numbers, _, -
+                </div>
+              </div>
 
-      <div class="auth-footer-notice">
-        🔒 Fast, encrypted & secure real-time messaging
+              <div class="auth-col-group">
+                <div class="auth-col-label-row">
+                  <label for="reg-display-name">DISPLAY NAME</label>
+                </div>
+                <div class="auth-underline-group">
+                  <input type="text" id="reg-display-name" placeholder="Ronak Mishra" required maxlength="30">
+                </div>
+              </div>
+            </div>
+
+            <!-- Password Field -->
+            <div class="auth-col-group" style="margin-top: 14px;">
+              <div class="auth-col-label-row">
+                <label for="reg-password">MASTER PASSWORD</label>
+              </div>
+              <div class="auth-underline-group">
+                <span class="auth-input-icon">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                </span>
+                <input type="password" id="reg-password" placeholder="••••••••••••" required minlength="6" autocomplete="new-password">
+                <button type="button" class="auth-password-toggle-btn" id="btn-toggle-reg-pwd" title="Show/Hide Password" aria-label="Toggle password visibility">
+                  <svg class="eye-icon-open" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  <svg class="eye-icon-closed" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Accent / Theme Color Selector (1 of 5) -->
+            <div class="auth-accent-picker-wrap" style="margin-top: 16px;">
+              <div class="auth-accent-label-row">
+                <span class="auth-sub-label">CHOOSE PROFILE & THEME COLOR (1 OF 5)</span>
+                <span class="auth-selected-color-name" id="reg-color-name">Indigo Pulse</span>
+              </div>
+              <div class="auth-color-pills-bar" id="reg-color-picker">
+                <button type="button" class="auth-color-pill active" data-color="#6366f1" data-name="Indigo Pulse" style="background:#6366f1;"></button>
+                <button type="button" class="auth-color-pill" data-color="#10b981" data-name="Emerald Mint" style="background:#10b981;"></button>
+                <button type="button" class="auth-color-pill" data-color="#a855f7" data-name="Cyber Violet" style="background:#a855f7;"></button>
+                <button type="button" class="auth-color-pill" data-color="#f59e0b" data-name="Amber Gold" style="background:#f59e0b;"></button>
+                <button type="button" class="auth-color-pill" data-color="#e2e8f0" data-name="Mono Classic" style="background:#e2e8f0;"></button>
+              </div>
+            </div>
+
+            <!-- Bio Field -->
+            <div class="auth-col-group" style="margin-top: 16px;">
+              <div class="auth-col-label-row">
+                <label for="reg-bio">BIO (optional)</label>
+                <span class="auth-char-limit">Max 120 chars</span>
+              </div>
+              <textarea id="reg-bio" placeholder="Building aesthetic interfaces with modern precision." maxlength="120" rows="2" class="auth-bio-textarea"></textarea>
+            </div>
+
+            <div id="reg-error" class="auth-alert-msg"></div>
+
+            <button type="submit" class="btn-auth-primary btn-auth-indigo" id="btn-reg-submit" style="margin-top:16px;">
+              <span>CREATE IDENTITY & PROCEED</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
+
+            <div class="auth-terms-note">
+              By creating an account, you accept antra's zero-knowledge cryptographic protocol.
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   </div>
