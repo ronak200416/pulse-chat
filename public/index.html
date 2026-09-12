@@ -379,14 +379,24 @@
             <button id="btn-clear-search" class="clear-search-btn" style="display:none;">✕</button>
           </div>
 
+          <!-- Voice Call Actions -->
+          <button class="btn btn-sm btn-call-header" id="btn-header-call" style="display:none;" title="Start 1-on-1 Voice Call">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+            <span>Call</span>
+          </button>
+
+          <button class="btn btn-sm btn-voice-header" id="btn-header-join-voice" style="display:none;" title="Join Group Voice Room">
+            <span>🎙️ Join Voice</span>
+          </button>
+
           <!-- Channel Action: Delete Group (for creator) -->
           <button class="btn btn-sm btn-danger" id="btn-header-delete-group" style="display:none;" title="Delete this group">
-            <span>🗑️ Delete Group</span>
+            <span>🗑️ Delete</span>
           </button>
 
           <!-- Channel Action: Leave Group (for members) -->
           <button class="btn btn-sm btn-glass" id="btn-header-leave-group" style="display:none;" title="Leave this group">
-            <span>🚪 Leave Group</span>
+            <span>🚪 Leave</span>
           </button>
 
           <!-- Sound FX Toggle -->
@@ -759,6 +769,85 @@
     </div>
   </div>
 
+  <!-- 5. INCOMING VOICE CALL MODAL -->
+  <div id="incoming-call-modal" class="modal-overlay">
+    <div class="incoming-call-card">
+      <div class="incoming-call-glow-ring">
+        <div class="incoming-caller-avatar" id="incoming-caller-avatar">U</div>
+      </div>
+      <h3 class="incoming-caller-name" id="incoming-caller-name">Caller Name</h3>
+      <p class="incoming-caller-handle" id="incoming-caller-handle">@username</p>
+      <div class="incoming-call-type-badge">
+        <span>Incoming Voice Call...</span>
+      </div>
+      <div class="incoming-call-actions">
+        <button class="btn-call-action btn-call-decline" id="btn-decline-incoming-call" title="Decline Call">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91M1 1l22 22"/></svg>
+        </button>
+        <button class="btn-call-action btn-call-accept" id="btn-accept-incoming-call" title="Accept Call">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. ACTIVE CALL FLOATING BAR -->
+  <div id="active-call-bar" class="active-call-floating-bar">
+    <div class="active-call-inner">
+      <div class="active-call-info">
+        <div class="active-call-status-dot"></div>
+        <div class="active-call-meta">
+          <span class="active-call-title" id="active-call-title">Voice Call</span>
+          <span class="active-call-status" id="active-call-status">Connected</span>
+        </div>
+        <div class="active-call-timer" id="call-duration-timer">00:00</div>
+      </div>
+      
+      <div class="active-call-participants-wrap" id="active-call-participants">
+        <!-- User avatar dots with live speaking rings -->
+      </div>
+
+      <div class="active-call-controls">
+        <button class="call-ctrl-btn" id="btn-call-mute" title="Mute / Unmute Microphone">
+          <span>🎤</span>
+        </button>
+        <button class="call-ctrl-btn" id="btn-call-deafen" title="Deafen / Undeafen Audio">
+          <span>🎧</span>
+        </button>
+        <button class="call-ctrl-btn btn-danger-call" id="btn-call-end" title="End Call">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91M1 1l22 22"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. USER PROFILE QUICK-ACTION MODAL -->
+  <div id="user-profile-modal" class="modal-overlay">
+    <div class="modal-card user-profile-popover-card">
+      <div class="modal-header" style="margin-bottom:12px;">
+        <span class="auth-sub-label">USER PROFILE</span>
+        <button class="icon-btn-xs" id="btn-close-user-profile">✕</button>
+      </div>
+      <div class="user-popover-header">
+        <div class="user-popover-avatar" id="popover-avatar" style="background-color:#6366f1;">U</div>
+        <div class="user-popover-details">
+          <h4 id="popover-name">User Name</h4>
+          <span class="user-popover-handle" id="popover-handle">@username</span>
+          <span class="user-popover-status" id="popover-status">
+            <span class="status-indicator online" id="popover-status-dot"></span>
+            <span id="popover-status-text">Online</span>
+          </span>
+        </div>
+      </div>
+      <div class="user-popover-bio-box" id="popover-bio-box">
+        <p id="popover-bio" class="user-popover-bio">"No bio yet"</p>
+      </div>
+      <div class="user-popover-actions" id="popover-actions">
+        <!-- Direct Message, Add Friend, Voice Call buttons injected dynamically -->
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification Container -->
   <div id="toast-container" class="toast-container"></div>
 
@@ -767,6 +856,7 @@
   
   <!-- App JS Modules -->
   <script src="js/auth.js"></script>
+  <script src="js/call.js"></script>
   <script src="js/chat.js"></script>
   <script src="js/app.js"></script>
 </body>

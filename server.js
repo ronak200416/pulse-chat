@@ -534,6 +534,12 @@ app.get('/api/network-info', async (req, res) => {
 const onlineUsers = new Map();
 const userSocketMap = new Map();
 
+// WebRTC Voice Call Tracking
+// Map of callId -> { callerId, recipientId, startTime }
+const activeDirectCalls = new Map();
+// Map of channelId -> Map(socketId -> { userId, user })
+const groupVoiceRooms = new Map();
+
 io.on('connection', (socket) => {
   let currentUser = null;
 
@@ -678,10 +684,240 @@ io.on('connection', (socket) => {
     }
   });
 
+  // ================= WebRTC 1-on-1 Direct Voice Calling =================
+
+  socket.on('voice_call_initiate', async ({ recipientId, callType }, callback) => {
+    if (!currentUser) {
+      if (callback) callback({ error: 'Unauthorized' });
+      return;
+    }
+
+    const recipientSockets = userSocketMap.get(recipientId);
+    if (!recipientSockets || recipientSockets.size === 0) {
+      if (callback) callback({ error: 'User is currently offline' });
+      return;
+    }
+
+    const callId = `call_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    activeDirectCalls.set(callId, {
+      callerId: currentUser.id,
+      recipientId,
+      startTime: Date.now()
+    });
+
+    for (const sId of recipientSockets) {
+      io.to(sId).emit('incoming_voice_call', {
+        callId,
+        caller: {
+          id: currentUser.id,
+          username: currentUser.username,
+          display_name: currentUser.display_name,
+          avatar_color: currentUser.avatar_color,
+          avatar_url: currentUser.avatar_url
+        },
+        callType: callType || 'audio'
+      });
+    }
+
+    if (callback) callback({ success: true, callId });
+  });
+
+  socket.on('voice_call_signal', ({ targetUserId, signal, callId }) => {
+    if (!currentUser) return;
+    const targetSockets = userSocketMap.get(targetUserId);
+    if (targetSockets) {
+      for (const sId of targetSockets) {
+        io.to(sId).emit('voice_call_signal', {
+          fromUserId: currentUser.id,
+          signal,
+          callId
+        });
+      }
+    }
+  });
+
+  socket.on('voice_call_accept', ({ callerId, callId }) => {
+    if (!currentUser) return;
+    const callerSockets = userSocketMap.get(callerId);
+    if (callerSockets) {
+      for (const sId of callerSockets) {
+        io.to(sId).emit('voice_call_accepted', {
+          recipient: currentUser,
+          callId
+        });
+      }
+    }
+  });
+
+  socket.on('voice_call_decline', ({ callerId, callId, reason }) => {
+    if (!currentUser) return;
+    activeDirectCalls.delete(callId);
+    const callerSockets = userSocketMap.get(callerId);
+    if (callerSockets) {
+      for (const sId of callerSockets) {
+        io.to(sId).emit('voice_call_declined', {
+          recipientId: currentUser.id,
+          callId,
+          reason: reason || 'Call declined'
+        });
+      }
+    }
+  });
+
+  socket.on('voice_call_end', ({ targetUserId, callId }) => {
+    if (!currentUser) return;
+    activeDirectCalls.delete(callId);
+    const targetSockets = userSocketMap.get(targetUserId);
+    if (targetSockets) {
+      for (const sId of targetSockets) {
+        io.to(sId).emit('voice_call_ended', {
+          endedBy: currentUser.id,
+          callId
+        });
+      }
+    }
+  });
+
+  // ================= WebRTC Group Channel Voice Rooms =================
+
+  socket.on('join_group_voice', ({ channelId }, callback) => {
+    if (!currentUser) {
+      if (callback) callback({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (!groupVoiceRooms.has(channelId)) {
+      groupVoiceRooms.set(channelId, new Map());
+    }
+
+    const room = groupVoiceRooms.get(channelId);
+    
+    // Existing participants in this channel's voice room
+    const existingParticipants = [];
+    for (const [sId, info] of room.entries()) {
+      if (sId !== socket.id) {
+        existingParticipants.push({
+          socketId: sId,
+          user: info.user
+        });
+      }
+    }
+
+    // Add current user to group voice room
+    room.set(socket.id, {
+      userId: currentUser.id,
+      user: {
+        id: currentUser.id,
+        username: currentUser.username,
+        display_name: currentUser.display_name,
+        avatar_color: currentUser.avatar_color,
+        avatar_url: currentUser.avatar_url
+      }
+    });
+
+    socket.join(`voice_${channelId}`);
+
+    // Broadcast to other participants in this audio room
+    socket.to(`voice_${channelId}`).emit('user_joined_group_voice', {
+      socketId: socket.id,
+      user: currentUser,
+      channelId
+    });
+
+    // Broadcast count update to everyone in channel
+    io.to(channelId).emit('group_voice_active_count', {
+      channelId,
+      count: room.size
+    });
+
+    if (callback) {
+      callback({
+        success: true,
+        participants: existingParticipants,
+        channelId
+      });
+    }
+  });
+
+  socket.on('group_voice_signal', ({ targetSocketId, signal, channelId }) => {
+    if (!currentUser) return;
+    io.to(targetSocketId).emit('group_voice_signal', {
+      fromSocketId: socket.id,
+      fromUser: currentUser,
+      signal,
+      channelId
+    });
+  });
+
+  socket.on('leave_group_voice', ({ channelId }) => {
+    if (!currentUser) return;
+    if (groupVoiceRooms.has(channelId)) {
+      const room = groupVoiceRooms.get(channelId);
+      room.delete(socket.id);
+      socket.leave(`voice_${channelId}`);
+
+      socket.to(`voice_${channelId}`).emit('user_left_group_voice', {
+        socketId: socket.id,
+        userId: currentUser.id,
+        channelId
+      });
+
+      io.to(channelId).emit('group_voice_active_count', {
+        channelId,
+        count: room.size
+      });
+
+      if (room.size === 0) {
+        groupVoiceRooms.delete(channelId);
+      }
+    }
+  });
+
+  // User Speaking Indicator
+  socket.on('voice_speaking_state', ({ channelId, targetUserId, isSpeaking }) => {
+    if (!currentUser) return;
+    if (channelId) {
+      socket.to(`voice_${channelId}`).emit('participant_speaking', {
+        userId: currentUser.id,
+        socketId: socket.id,
+        isSpeaking
+      });
+    } else if (targetUserId) {
+      const targetSockets = userSocketMap.get(targetUserId);
+      if (targetSockets) {
+        for (const sId of targetSockets) {
+          io.to(sId).emit('participant_speaking', {
+            userId: currentUser.id,
+            isSpeaking
+          });
+        }
+      }
+    }
+  });
+
   // Disconnect
   socket.on('disconnect', async () => {
     const uId = onlineUsers.get(socket.id);
     onlineUsers.delete(socket.id);
+
+    // Clean up any group voice rooms
+    for (const [channelId, room] of groupVoiceRooms.entries()) {
+      if (room.has(socket.id)) {
+        room.delete(socket.id);
+        socket.to(`voice_${channelId}`).emit('user_left_group_voice', {
+          socketId: socket.id,
+          userId: uId,
+          channelId
+        });
+        io.to(channelId).emit('group_voice_active_count', {
+          channelId,
+          count: room.size
+        });
+        if (room.size === 0) {
+          groupVoiceRooms.delete(channelId);
+        }
+      }
+    }
 
     if (uId && userSocketMap.has(uId)) {
       const userSockets = userSocketMap.get(uId);

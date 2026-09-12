@@ -733,8 +733,9 @@ class DatabaseService {
       return { error: 'Please enter a username or user ID' };
     }
 
-    const clean = targetIdentifier.trim().toLowerCase();
-    let receiver = await this.getOne('SELECT * FROM users WHERE id = ? OR LOWER(username) = ?', [clean, clean]);
+    const raw = targetIdentifier.trim();
+    const clean = raw.toLowerCase();
+    let receiver = await this.getOne('SELECT * FROM users WHERE id = ? OR LOWER(username) = ?', [raw, clean]);
     if (!receiver) {
       return { error: 'User not found. Check the username or ID and try again.' };
     }
@@ -764,7 +765,7 @@ class DatabaseService {
         const friendUser = await this.getUserById(receiver.id);
         return { success: true, auto_accepted: true, message: `You and @${receiver.username} are now friends!`, friend: friendUser, requestId: existing.id, receiver_id: receiver.id };
       }
-      // If rejected or cancelled, reopen as pending
+      // If rejected, cancelled or stale, reopen as pending
       await this.run('UPDATE friend_requests SET sender_id = ?, receiver_id = ?, status = "pending", updated_at = ? WHERE id = ?', [senderId, receiver.id, now, existing.id]);
       return { success: true, message: `Friend request sent to @${receiver.username}!`, receiver, requestId: existing.id };
     }
@@ -840,13 +841,28 @@ class DatabaseService {
   }
 
   async searchUsers(query, currentUserId) {
-    const clean = `%${(query || '').trim().toLowerCase()}%`;
-    const users = await this.getAll(`
-      SELECT id, username, display_name, avatar_color, avatar_url, bio, status, last_seen
-      FROM users
-      WHERE id != ? AND (LOWER(username) LIKE ? OR LOWER(display_name) LIKE ? OR id LIKE ?)
-      LIMIT 20
-    `, [currentUserId, clean, clean, clean]);
+    const trimmed = (query || '').trim();
+    let users = [];
+
+    if (!trimmed) {
+      // Return recent active community members for instant discovery
+      users = await this.getAll(`
+        SELECT id, username, display_name, avatar_color, avatar_url, bio, status, last_seen
+        FROM users
+        WHERE id != ?
+        ORDER BY last_seen DESC
+        LIMIT 30
+      `, [currentUserId]);
+    } else {
+      const clean = `%${trimmed.toLowerCase()}%`;
+      users = await this.getAll(`
+        SELECT id, username, display_name, avatar_color, avatar_url, bio, status, last_seen
+        FROM users
+        WHERE id != ? AND (LOWER(username) LIKE ? OR LOWER(display_name) LIKE ? OR id LIKE ?)
+        ORDER BY last_seen DESC
+        LIMIT 30
+      `, [currentUserId, clean, clean, clean]);
+    }
 
     const result = [];
     for (const u of users) {
