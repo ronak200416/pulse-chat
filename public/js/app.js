@@ -66,40 +66,52 @@ const App = {
   },
 
   bindUIEvents() {
-    // Mobile Sidebar Toggle
+    // Mobile Sidebar & Drawers
     const btnToggleSidebar = document.getElementById('btn-toggle-sidebar');
     const btnCloseSidebar = document.getElementById('btn-close-sidebar');
     const sidebar = document.getElementById('app-sidebar');
     const backdrop = document.getElementById('sidebar-backdrop');
+    const btnToggleMembers = document.getElementById('btn-toggle-members');
+    const rightSidebar = document.getElementById('app-right-sidebar');
+    const btnCloseRight = document.getElementById('btn-close-right-sidebar');
+
+    const closeAllDrawers = () => {
+      if (sidebar) sidebar.classList.remove('open');
+      if (rightSidebar) rightSidebar.classList.add('collapsed');
+      if (backdrop) backdrop.classList.remove('active');
+    };
 
     if (btnToggleSidebar && sidebar && backdrop) {
       btnToggleSidebar.addEventListener('click', () => {
+        if (rightSidebar) rightSidebar.classList.add('collapsed');
         sidebar.classList.add('open');
         backdrop.classList.add('active');
       });
     }
 
-    const closeDrawer = () => {
-      if (sidebar) sidebar.classList.remove('open');
-      if (backdrop) backdrop.classList.remove('active');
-    };
-
-    if (btnCloseSidebar) btnCloseSidebar.addEventListener('click', closeDrawer);
-    if (backdrop) backdrop.addEventListener('click', closeDrawer);
+    if (btnCloseSidebar) btnCloseSidebar.addEventListener('click', closeAllDrawers);
+    if (backdrop) backdrop.addEventListener('click', closeAllDrawers);
 
     // Right Sidebar / Members Toggle
-    const btnToggleMembers = document.getElementById('btn-toggle-members');
-    const rightSidebar = document.getElementById('app-right-sidebar');
-    const btnCloseRight = document.getElementById('btn-close-right-sidebar');
-
     if (btnToggleMembers && rightSidebar) {
       btnToggleMembers.addEventListener('click', () => {
-        rightSidebar.classList.toggle('collapsed');
+        const isCollapsed = rightSidebar.classList.contains('collapsed');
+        if (isCollapsed) {
+          if (sidebar) sidebar.classList.remove('open');
+          rightSidebar.classList.remove('collapsed');
+          if (window.innerWidth <= 900 && backdrop) {
+            backdrop.classList.add('active');
+          }
+        } else {
+          rightSidebar.classList.add('collapsed');
+          if (backdrop) backdrop.classList.remove('active');
+        }
       });
     }
     if (btnCloseRight && rightSidebar) {
       btnCloseRight.addEventListener('click', () => {
         rightSidebar.classList.add('collapsed');
+        if (backdrop) backdrop.classList.remove('active');
       });
     }
 
@@ -536,7 +548,14 @@ const App = {
         headers: { 'Authorization': `Bearer ${Auth.token}` }
       });
       const data = await res.json();
-      this.friends = data.friends || [];
+      const rawFriends = data.friends || [];
+      const friendMap = new Map();
+      rawFriends.forEach(f => {
+        if (f && f.id && !friendMap.has(f.id)) {
+          friendMap.set(f.id, f);
+        }
+      });
+      this.friends = Array.from(friendMap.values());
       this.renderUsersList();
       this.renderFriendsTab();
 
@@ -553,9 +572,24 @@ const App = {
         headers: { 'Authorization': `Bearer ${Auth.token}` }
       });
       const data = await res.json();
+      
+      const rawIncoming = data.incoming || [];
+      const incomingMap = new Map();
+      rawIncoming.forEach(r => {
+        const key = r.request_id || r.id;
+        if (key && !incomingMap.has(key)) incomingMap.set(key, r);
+      });
+
+      const rawOutgoing = data.outgoing || [];
+      const outgoingMap = new Map();
+      rawOutgoing.forEach(r => {
+        const key = r.request_id || r.id;
+        if (key && !outgoingMap.has(key)) outgoingMap.set(key, r);
+      });
+
       this.pendingRequests = {
-        incoming: data.incoming || [],
-        outgoing: data.outgoing || []
+        incoming: Array.from(incomingMap.values()),
+        outgoing: Array.from(outgoingMap.values())
       };
 
       const incomingCount = this.pendingRequests.incoming.length;
@@ -932,7 +966,14 @@ const App = {
       const headers = Auth.token ? { 'Authorization': `Bearer ${Auth.token}` } : {};
       const res = await fetch('/api/channels', { headers });
       const data = await res.json();
-      this.channels = data.channels || [];
+      const rawChannels = data.channels || [];
+      const chanMap = new Map();
+      rawChannels.forEach(c => {
+        if (c && c.id && !chanMap.has(c.id)) {
+          chanMap.set(c.id, c);
+        }
+      });
+      this.channels = Array.from(chanMap.values());
       this.renderChannelsList();
 
       if (!this.currentRoom) {
@@ -947,7 +988,14 @@ const App = {
     try {
       const res = await fetch('/api/users');
       const data = await res.json();
-      this.users = data.users || [];
+      const rawUsers = data.users || [];
+      const userMap = new Map();
+      rawUsers.forEach(u => {
+        if (u && u.id && !userMap.has(u.id)) {
+          userMap.set(u.id, u);
+        }
+      });
+      this.users = Array.from(userMap.values());
     } catch (err) {
       console.error('Failed to load users:', err);
     }
@@ -1063,7 +1111,8 @@ const App = {
     const memberCount = document.getElementById('member-count');
     if (!memberList) return;
 
-    memberList.innerHTML = '';
+    this._membersRenderSeq = (this._membersRenderSeq || 0) + 1;
+    const currentSeq = this._membersRenderSeq;
 
     const isChannel = this.currentRoom && this.currentRoom.type === 'channel';
     const isGeneral = this.currentRoom && (this.currentRoom.id === 'chan_general' || this.currentRoom.name === 'general');
@@ -1073,8 +1122,20 @@ const App = {
       try {
         const res = await fetch('/api/users');
         const data = await res.json();
-        const users = data.users || [];
+        if (currentSeq !== this._membersRenderSeq) return; // Stale parallel call
+
+        const rawUsers = data.users || [];
+        // Strict de-duplication by unique user ID
+        const userMap = new Map();
+        rawUsers.forEach(u => {
+          if (u && u.id && !userMap.has(u.id)) {
+            userMap.set(u.id, u);
+          }
+        });
+        const users = Array.from(userMap.values());
+
         if (memberCount) memberCount.textContent = users.length;
+        memberList.innerHTML = '';
 
         users.forEach(u => {
           const isOnline = this.onlineUserIds.has(u.id);
@@ -1097,15 +1158,29 @@ const App = {
           memberList.appendChild(item);
         });
         return;
-      } catch (e) {}
+      } catch (e) {
+        if (currentSeq !== this._membersRenderSeq) return;
+      }
     }
 
     if (isChannel && !isGeneral) {
       try {
         const res = await fetch(`/api/channels/${this.currentRoom.id}/members`);
         const data = await res.json();
-        const members = data.members || [];
+        if (currentSeq !== this._membersRenderSeq) return; // Stale parallel call
+
+        const rawMembers = data.members || [];
+        // Strict de-duplication by unique member ID
+        const memberMap = new Map();
+        rawMembers.forEach(u => {
+          if (u && u.id && !memberMap.has(u.id)) {
+            memberMap.set(u.id, u);
+          }
+        });
+        const members = Array.from(memberMap.values());
+
         if (memberCount) memberCount.textContent = members.length;
+        memberList.innerHTML = '';
 
         members.forEach(u => {
           const isOnline = this.onlineUserIds.has(u.id);
@@ -1133,27 +1208,48 @@ const App = {
           memberList.appendChild(item);
         });
         return;
-      } catch (e) {}
+      } catch (e) {
+        if (currentSeq !== this._membersRenderSeq) return;
+      }
     }
 
     // Direct Message view
     if (this.currentRoom && this.currentRoom.type === 'direct') {
       const partner = this.friends.find(f => f.id === this.currentRoom.recipientId);
-      if (memberCount) memberCount.textContent = '2';
+      if (memberCount) memberCount.textContent = partner ? '2' : '1';
+      memberList.innerHTML = '';
+
       if (partner) {
         const isOnline = this.onlineUserIds.has(partner.id);
-        memberList.innerHTML = `
-          <div class="member-item">
-            <div class="member-avatar" style="background-color:${partner.avatar_color || '#6366f1'}">
-              ${(partner.display_name || partner.username).charAt(0).toUpperCase()}
-            </div>
-            <div style="flex:1;min-width:0;">
-              <div class="member-name">${this.escapeHtml(partner.display_name || partner.username)}</div>
-              <div class="text-xs text-muted">@${this.escapeHtml(partner.username)} • ${isOnline ? 'Online' : 'Offline'}</div>
-            </div>
-            <span class="status-indicator ${isOnline ? 'online' : 'offline'}"></span>
+        const partnerItem = document.createElement('div');
+        partnerItem.className = 'member-item';
+        partnerItem.innerHTML = `
+          <div class="member-avatar" style="background-color:${partner.avatar_color || '#6366f1'}">
+            ${(partner.display_name || partner.username).charAt(0).toUpperCase()}
           </div>
+          <div style="flex:1;min-width:0;">
+            <div class="member-name">${this.escapeHtml(partner.display_name || partner.username)}</div>
+            <div class="text-xs text-muted">@${this.escapeHtml(partner.username)} • ${isOnline ? 'Online' : 'Offline'}</div>
+          </div>
+          <span class="status-indicator ${isOnline ? 'online' : 'offline'}"></span>
         `;
+        memberList.appendChild(partnerItem);
+      }
+
+      if (Auth.user && (!partner || partner.id !== Auth.user.id)) {
+        const myItem = document.createElement('div');
+        myItem.className = 'member-item';
+        myItem.innerHTML = `
+          <div class="member-avatar" style="background-color:${Auth.user.avatar_color || '#6366f1'}">
+            ${(Auth.user.display_name || Auth.user.username).charAt(0).toUpperCase()}
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div class="member-name">${this.escapeHtml(Auth.user.display_name || Auth.user.username)} (You)</div>
+            <div class="text-xs text-muted">@${this.escapeHtml(Auth.user.username)} • Online</div>
+          </div>
+          <span class="status-indicator online"></span>
+        `;
+        memberList.appendChild(myItem);
       }
     }
   },
@@ -1233,8 +1329,10 @@ const App = {
 
   closeMobileDrawer() {
     const sidebar = document.getElementById('app-sidebar');
+    const rightSidebar = document.getElementById('app-right-sidebar');
     const backdrop = document.getElementById('sidebar-backdrop');
     if (sidebar) sidebar.classList.remove('open');
+    if (window.innerWidth <= 900 && rightSidebar) rightSidebar.classList.add('collapsed');
     if (backdrop) backdrop.classList.remove('active');
   },
 
