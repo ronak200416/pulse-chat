@@ -5,32 +5,53 @@ const initSqlJs = require('sql.js');
 const { createClient } = require('@libsql/client');
 
 const DB_PATH = path.join(__dirname, 'database.sqlite');
-const TURSO_URL = process.env.TURSO_DATABASE_URL || process.env.TURSO_URL;
-const TURSO_TOKEN = process.env.TURSO_AUTH_TOKEN || process.env.TURSO_TOKEN;
+
+function getTursoCredentials() {
+  const url = (process.env.TURSO_DATABASE_URL || process.env.TURSO_URL || '').trim().replace(/^["']|["']$/g, '');
+  const token = (process.env.TURSO_AUTH_TOKEN || process.env.TURSO_TOKEN || '').trim().replace(/^["']|["']$/g, '');
+  return { url, token, isConfigured: Boolean(url && token) };
+}
 
 class DatabaseService {
   constructor() {
-    this.isTurso = Boolean(TURSO_URL);
+    this.isTurso = false;
     this.tursoClient = null;
     this.db = null; // Local sql.js
     this.SQL = null;
+    this.tursoError = null;
   }
 
   async init() {
-    if (this.isTurso) {
-      console.log('⚡ Connecting to Turso Cloud SQLite database...');
-      this.tursoClient = createClient({
-        url: TURSO_URL,
-        authToken: TURSO_TOKEN
-      });
-      await this.createTablesTurso();
-      await this.cleanupLegacyChannelsTurso();
-      await this.seedDefaultChannelsTurso();
+    const { url, token, isConfigured } = getTursoCredentials();
+
+    if (isConfigured) {
       try {
-        await this.run("DELETE FROM messages WHERE content LIKE '%Anonymous check%'");
-      } catch (e) {}
-      console.log('🌟 Connected to Turso Cloud SQLite with 100% PERMANENT cloud storage!');
-      return this;
+        console.log(`⚡ Connecting to Turso Cloud SQLite database at ${url}...`);
+        this.tursoClient = createClient({
+          url,
+          authToken: token
+        });
+        this.isTurso = true;
+        await this.createTablesTurso();
+        await this.cleanupLegacyChannelsTurso();
+        await this.seedDefaultChannelsTurso();
+        try {
+          await this.run("DELETE FROM messages WHERE content LIKE '%Anonymous check%'");
+        } catch (e) {}
+        console.log('🌟 Connected to Turso Cloud SQLite with 100% PERMANENT cloud storage!');
+        return this;
+      } catch (err) {
+        console.error('❌ Failed to connect to Turso Cloud SQLite:', err.message);
+        this.tursoError = err.message;
+        this.isTurso = false;
+        this.tursoClient = null;
+        console.log('⚠️ Falling back to Local SQLite database...');
+      }
+    } else {
+      if (url || token) {
+        console.warn(`⚠️ Incomplete Turso credentials: URL=${url ? 'present' : 'missing'}, Token=${token ? 'present' : 'missing'}`);
+        this.tursoError = `Incomplete credentials: URL is ${url ? 'present' : 'missing'}, Token is ${token ? 'present' : 'missing'}`;
+      }
     }
 
     // Local SQLite fallback
@@ -820,6 +841,7 @@ class DatabaseService {
   }
 
   async getStats() {
+    const { url, token, isConfigured } = getTursoCredentials();
     const uRow = await this.getOne('SELECT COUNT(*) as count FROM users');
     const mRow = await this.getOne('SELECT COUNT(*) as count FROM messages');
     const cRow = await this.getOne('SELECT COUNT(*) as count FROM channels');
@@ -829,6 +851,10 @@ class DatabaseService {
     }
     return {
       storage: this.isTurso ? 'Turso Cloud SQLite' : 'Local SQLite',
+      turso_configured: isConfigured,
+      turso_url_set: Boolean(url),
+      turso_token_set: Boolean(token),
+      turso_error: this.tursoError || null,
       users: uRow ? uRow.count : 0,
       messages: mRow ? mRow.count : 0,
       channels: cRow ? cRow.count : 0,
