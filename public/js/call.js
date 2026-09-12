@@ -1,8 +1,9 @@
 // WebRTC Voice Calling Engine for 1-on-1 and Group Audio Rooms
 const CallManager = {
-  activeCall: null, // { type: 'direct'|'group', callId, partnerId, partnerName, channelId, channelName, startTime, timerInterval }
+  activeCall: null, // { type: 'direct'|'group', callId, partnerId, partnerName, partnerAvatar, partnerColor, channelId, channelName, startTime, timerInterval, isCaller }
   localStream: null,
   peerConnections: new Map(), // Direct: 'direct' -> pc | Group: socketId -> pc
+  pendingCandidates: new Map(), // Direct: 'direct' -> candidate[] | Group: socketId -> candidate[]
   audioElements: new Map(), // Direct: 'direct' -> audio | Group: socketId -> audio
   isMuted: false,
   isDeafened: false,
@@ -12,61 +13,125 @@ const CallManager = {
   speakingAnalyser: null,
   speakingInterval: null,
   isSpeaking: false,
+  isTestingMic: false,
+  micTestStream: null,
+  micTestAudioNode: null,
 
   rtcConfig: {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
-      { urls: 'stun:stun2.l.google.com:19302' }
+      { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:stun3.l.google.com:19302' },
+      { urls: 'stun:stun4.l.google.com:19302' },
+      { urls: 'stun:stun.services.mozilla.com' },
+      { urls: 'stun:stun.cloudflare.com:3478' }
     ]
   },
 
   init() {
     this.bindSocketEvents();
     this.bindUIEvents();
+    this.setupGlobalAudioUnlock();
+  },
+
+  setupGlobalAudioUnlock() {
+    const unlock = () => {
+      if (this.audioCtx && this.audioCtx.state === 'suspended') {
+        this.audioCtx.resume();
+      }
+      this.audioElements.forEach(audio => {
+        if (audio && audio.paused && audio.srcObject) {
+          audio.play().catch(() => {});
+        }
+      });
+    };
+    document.addEventListener('click', unlock, { passive: true });
+    document.addEventListener('touchstart', unlock, { passive: true });
   },
 
   bindSocketEvents() {
     if (!App.socket) return;
 
-    // 1-on-1 Incoming Call
+    // 1-on-1 Incoming Call Notification
     App.socket.on('incoming_voice_call', (data) => {
       this.handleIncomingCall(data);
     });
 
-    // 1-on-1 Signaling
+    // 1-on-1 WebRTC Signaling Exchange
     App.socket.on('voice_call_signal', async ({ fromUserId, signal, callId }) => {
       if (!this.activeCall || this.activeCall.callId !== callId) return;
-      const pc = this.peerConnections.get('direct');
-      if (!pc) return;
 
       try {
+        let pc = this.peerConnections.get('direct');
+
         if (signal.type === 'offer') {
+          // Callee receives offer from Caller
+          if (!pc) {
+            pc = this.createDirectPeerConnection(fromUserId, callId);
+          }
           await pc.setRemoteDescription(new RTCSessionDescription(signal));
+          await this.flushPendingCandidates('direct', pc);
+
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
+
           App.socket.emit('voice_call_signal', {
             targetUserId: fromUserId,
             signal: answer,
             callId
           });
         } else if (signal.type === 'answer') {
-          await pc.setRemoteDescription(new RTCSessionDescription(signal));
+          // Caller receives answer from Callee
+          if (pc) {
+            await pc.setRemoteDescription(new RTCSessionDescription(signal));
+            await this.flushPendingCandidates('direct', pc);
+          }
         } else if (signal.candidate) {
-          await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+          // ICE candidate received
+          if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+            } catch (err) {
+              console.warn('Direct addIceCandidate error:', err);
+            }
+          } else {
+            this.queuePendingCandidate('direct', signal.candidate);
+          }
         }
       } catch (err) {
         console.error('Error handling direct voice call signal:', err);
       }
     });
 
-    // 1-on-1 Call Accepted by Callee
+    // 1-on-1 Call Accepted by Callee -> Caller triggers negotiation
     App.socket.on('voice_call_accepted', async ({ recipient, callId }) => {
       if (!this.activeCall || this.activeCall.callId !== callId) return;
       this.stopRingtone();
       this.playConnectedChime();
       this.updateCallStatus('Connected');
       this.startCallTimer();
+
+      try {
+        let pc = this.peerConnections.get('direct');
+        if (!pc) {
+          pc = this.createDirectPeerConnection(this.activeCall.partnerId, callId);
+        }
+
+        const offer = await pc.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: false
+        });
+        await pc.setLocalDescription(offer);
+
+        App.socket.emit('voice_call_signal', {
+          targetUserId: this.activeCall.partnerId,
+          signal: offer,
+          callId
+        });
+      } catch (err) {
+        console.error('Error creating offer on call accepted:', err);
+      }
     });
 
     // 1-on-1 Call Declined
@@ -90,31 +155,47 @@ const CallManager = {
       if (!this.activeCall || this.activeCall.type !== 'group' || this.activeCall.channelId !== channelId) return;
       App.showToast(`🎙️ ${user.display_name || user.username} joined voice`);
       this.addParticipantToGroupCallUI(socketId, user);
-      await this.initiateGroupMeshPeer(socketId, user, true);
+      // We are the existing member; create peer connection in passive mode (wait for joining member's offer)
+      this.createGroupPeerConnection(socketId, user, false);
     });
 
-    // Group Voice Room: Mesh Signaling
+    // Group Voice Room: Mesh Signaling Exchange
     App.socket.on('group_voice_signal', async ({ fromSocketId, fromUser, signal, channelId }) => {
       if (!this.activeCall || this.activeCall.type !== 'group' || this.activeCall.channelId !== channelId) return;
-      let pc = this.peerConnections.get(fromSocketId);
-      if (!pc) {
-        pc = await this.initiateGroupMeshPeer(fromSocketId, fromUser, false);
-      }
 
       try {
+        let pc = this.peerConnections.get(fromSocketId);
+
         if (signal.type === 'offer') {
+          if (!pc) {
+            pc = this.createGroupPeerConnection(fromSocketId, fromUser, false);
+          }
           await pc.setRemoteDescription(new RTCSessionDescription(signal));
+          await this.flushPendingCandidates(fromSocketId, pc);
+
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
+
           App.socket.emit('group_voice_signal', {
             targetSocketId: fromSocketId,
             signal: answer,
             channelId
           });
         } else if (signal.type === 'answer') {
-          await pc.setRemoteDescription(new RTCSessionDescription(signal));
+          if (pc) {
+            await pc.setRemoteDescription(new RTCSessionDescription(signal));
+            await this.flushPendingCandidates(fromSocketId, pc);
+          }
         } else if (signal.candidate) {
-          await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+          if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+            } catch (err) {
+              console.warn('Group addIceCandidate error:', err);
+            }
+          } else {
+            this.queuePendingCandidate(fromSocketId, signal.candidate);
+          }
         }
       } catch (err) {
         console.error('Group voice signal error:', err);
@@ -124,8 +205,13 @@ const CallManager = {
     // Group Voice Room: User Left
     App.socket.on('user_left_group_voice', ({ socketId }) => {
       if (this.peerConnections.has(socketId)) {
-        this.peerConnections.get(socketId).close();
+        try {
+          this.peerConnections.get(socketId).close();
+        } catch (e) {}
         this.peerConnections.delete(socketId);
+      }
+      if (this.pendingCandidates.has(socketId)) {
+        this.pendingCandidates.delete(socketId);
       }
       if (this.audioElements.has(socketId)) {
         const audio = this.audioElements.get(socketId);
@@ -207,7 +293,12 @@ const CallManager = {
 
     try {
       this.localStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1
+        },
         video: false
       });
     } catch (err) {
@@ -249,34 +340,8 @@ const CallManager = {
       this.playOutgoingRinging();
       this.setupSpeakingDetector();
 
-      // Create RTCPeerConnection
-      const pc = new RTCPeerConnection(this.rtcConfig);
-      this.peerConnections.set('direct', pc);
-
-      this.localStream.getTracks().forEach(track => pc.addTrack(track, this.localStream));
-
-      pc.ontrack = (event) => {
-        this.attachRemoteAudio('direct', event.streams[0]);
-      };
-
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          App.socket.emit('voice_call_signal', {
-            targetUserId: partnerId,
-            signal: { candidate: event.candidate },
-            callId
-          });
-        }
-      };
-
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-
-      App.socket.emit('voice_call_signal', {
-        targetUserId: partnerId,
-        signal: offer,
-        callId
-      });
+      // Pre-create PeerConnection and attach local audio tracks
+      this.createDirectPeerConnection(partnerId, callId);
     });
   },
 
@@ -322,7 +387,12 @@ const CallManager = {
 
     try {
       this.localStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1
+        },
         video: false
       });
     } catch (err) {
@@ -334,7 +404,7 @@ const CallManager = {
 
     this.showActiveCallBar({
       title: this.activeCall.partnerName,
-      status: 'Connected',
+      status: 'Connecting...',
       name: this.activeCall.partnerName,
       color: this.activeCall.partnerColor
     });
@@ -343,29 +413,60 @@ const CallManager = {
     this.startCallTimer();
     this.setupSpeakingDetector();
 
-    const pc = new RTCPeerConnection(this.rtcConfig);
-    this.peerConnections.set('direct', pc);
+    // Create RTCPeerConnection for incoming direct call
+    this.createDirectPeerConnection(this.activeCall.partnerId, this.activeCall.callId);
 
-    this.localStream.getTracks().forEach(track => pc.addTrack(track, this.localStream));
-
-    pc.ontrack = (event) => {
-      this.attachRemoteAudio('direct', event.streams[0]);
-    };
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        App.socket.emit('voice_call_signal', {
-          targetUserId: this.activeCall.partnerId,
-          signal: { candidate: event.candidate },
-          callId: this.activeCall.callId
-        });
-      }
-    };
-
+    // Notify caller that call was accepted
     App.socket.emit('voice_call_accept', {
       callerId: this.activeCall.partnerId,
       callId: this.activeCall.callId
     });
+  },
+
+  createDirectPeerConnection(partnerId, callId) {
+    if (this.peerConnections.has('direct')) {
+      try {
+        this.peerConnections.get('direct').close();
+      } catch (e) {}
+    }
+
+    const pc = new RTCPeerConnection(this.rtcConfig);
+    this.peerConnections.set('direct', pc);
+
+    // Attach local audio track
+    if (this.localStream) {
+      this.localStream.getTracks().forEach(track => {
+        pc.addTrack(track, this.localStream);
+      });
+    }
+
+    // Remote audio track received
+    pc.ontrack = (event) => {
+      const stream = event.streams && event.streams[0] ? event.streams[0] : new MediaStream([event.track]);
+      this.attachRemoteAudio('direct', stream);
+    };
+
+    // Candidate gathering
+    pc.onicecandidate = (event) => {
+      if (event.candidate && this.activeCall) {
+        App.socket.emit('voice_call_signal', {
+          targetUserId: partnerId,
+          signal: { candidate: event.candidate },
+          callId: this.activeCall.callId || callId
+        });
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      console.log('Direct WebRTC connection state:', pc.connectionState);
+      if (pc.connectionState === 'connected') {
+        this.updateCallStatus('Connected');
+      } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        this.updateCallStatus('Reconnecting...');
+      }
+    };
+
+    return pc;
   },
 
   declineCall() {
@@ -411,7 +512,12 @@ const CallManager = {
 
     try {
       this.localStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1
+        },
         video: false
       });
     } catch (err) {
@@ -423,6 +529,10 @@ const CallManager = {
     App.socket.emit('join_group_voice', { channelId }, async (res) => {
       if (res && res.error) {
         App.showToast(res.error);
+        if (this.localStream) {
+          this.localStream.getTracks().forEach(t => t.stop());
+          this.localStream = null;
+        }
         return;
       }
 
@@ -443,14 +553,13 @@ const CallManager = {
       this.playConnectedChime();
       this.startCallTimer();
       this.setupSpeakingDetector();
-
       this.updateGroupVoiceButtonUI(true);
 
-      // Connect mesh WebRTC to existing participants
+      // Connect mesh WebRTC to existing participants (we are initiator)
       const participants = res.participants || [];
       for (const p of participants) {
         this.addParticipantToGroupCallUI(p.socketId, p.user);
-        await this.initiateGroupMeshPeer(p.socketId, p.user, true);
+        await this.createGroupPeerConnection(p.socketId, p.user, true);
       }
     });
   },
@@ -463,16 +572,25 @@ const CallManager = {
     this.cleanupCall();
   },
 
-  async initiateGroupMeshPeer(targetSocketId, targetUser, isInitiator) {
+  async createGroupPeerConnection(targetSocketId, targetUser, isInitiator) {
+    if (this.peerConnections.has(targetSocketId)) {
+      try {
+        this.peerConnections.get(targetSocketId).close();
+      } catch (e) {}
+    }
+
     const pc = new RTCPeerConnection(this.rtcConfig);
     this.peerConnections.set(targetSocketId, pc);
 
     if (this.localStream) {
-      this.localStream.getTracks().forEach(track => pc.addTrack(track, this.localStream));
+      this.localStream.getTracks().forEach(track => {
+        pc.addTrack(track, this.localStream);
+      });
     }
 
     pc.ontrack = (event) => {
-      this.attachRemoteAudio(targetSocketId, event.streams[0]);
+      const stream = event.streams && event.streams[0] ? event.streams[0] : new MediaStream([event.track]);
+      this.attachRemoteAudio(targetSocketId, stream);
     };
 
     pc.onicecandidate = (event) => {
@@ -486,17 +604,50 @@ const CallManager = {
     };
 
     if (isInitiator) {
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      App.socket.emit('group_voice_signal', {
-        targetSocketId,
-        signal: offer,
-        channelId: this.activeCall.channelId
-      });
+      try {
+        const offer = await pc.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: false
+        });
+        await pc.setLocalDescription(offer);
+        App.socket.emit('group_voice_signal', {
+          targetSocketId,
+          signal: offer,
+          channelId: this.activeCall.channelId
+        });
+      } catch (err) {
+        console.error('Error creating group mesh offer:', err);
+      }
     }
 
     return pc;
   },
+
+  // ================= Candidate Queuing Helper =================
+
+  queuePendingCandidate(key, candidate) {
+    if (!this.pendingCandidates.has(key)) {
+      this.pendingCandidates.set(key, []);
+    }
+    this.pendingCandidates.get(key).push(candidate);
+  },
+
+  async flushPendingCandidates(key, pc) {
+    const queue = this.pendingCandidates.get(key);
+    if (!queue || queue.length === 0) return;
+
+    while (queue.length > 0) {
+      const cand = queue.shift();
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(cand));
+      } catch (e) {
+        console.warn('Error flushing queued candidate:', e);
+      }
+    }
+    this.pendingCandidates.delete(key);
+  },
+
+  // ================= Audio Output & Playback =================
 
   attachRemoteAudio(id, stream) {
     let audio = this.audioElements.get(id);
@@ -504,12 +655,36 @@ const CallManager = {
       audio = document.createElement('audio');
       audio.autoplay = true;
       audio.playsInline = true;
-      audio.style.display = 'none';
+      audio.volume = 1.0;
+      audio.muted = this.isDeafened;
+      audio.style.position = 'fixed';
+      audio.style.opacity = '0';
+      audio.style.pointerEvents = 'none';
+      audio.style.bottom = '0';
+      audio.id = `remote-audio-${id}`;
       document.body.appendChild(audio);
       this.audioElements.set(id, audio);
     }
+
     audio.srcObject = stream;
     audio.muted = this.isDeafened;
+
+    // Ensure playback starts even with strict browser policies
+    const playAudio = () => {
+      const promise = audio.play();
+      if (promise !== undefined) {
+        promise.catch((err) => {
+          console.warn(`Autoplay restriction for ${id}:`, err);
+          const clickUnlock = () => {
+            audio.play().catch(() => {});
+          };
+          document.addEventListener('click', clickUnlock, { once: true });
+          document.addEventListener('touchstart', clickUnlock, { once: true });
+        });
+      }
+    };
+
+    playAudio();
   },
 
   // ================= Controls: Mute, Deafen, Timer =================
@@ -564,8 +739,8 @@ const CallManager = {
   setupSpeakingDetector() {
     if (!this.localStream) return;
     try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (!this.audioCtx) this.audioCtx = new AudioContext();
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!this.audioCtx) this.audioCtx = new AudioCtx();
       if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
 
       const source = this.audioCtx.createMediaStreamSource(this.localStream);
@@ -592,7 +767,7 @@ const CallManager = {
           sum += dataArray[i];
         }
         const avg = sum / bufferLength;
-        const nowSpeaking = avg > 18;
+        const nowSpeaking = avg > 15;
 
         if (nowSpeaking !== this.isSpeaking) {
           this.isSpeaking = nowSpeaking;
@@ -716,8 +891,13 @@ const CallManager = {
     }
 
     // Close all WebRTC peer connections
-    this.peerConnections.forEach(pc => pc.close());
+    this.peerConnections.forEach(pc => {
+      try {
+        pc.close();
+      } catch (e) {}
+    });
     this.peerConnections.clear();
+    this.pendingCandidates.clear();
 
     // Remove remote audio elements
     this.audioElements.forEach(audio => {
@@ -755,6 +935,59 @@ const CallManager = {
     this.activeCall = null;
   },
 
+  // ================= Built-in Microphone Audio Test / Echo Check =================
+
+  async toggleMicTest() {
+    if (this.isTestingMic) {
+      this.stopMicTest();
+      App.showToast('Microphone test ended');
+    } else {
+      await this.startMicTest();
+    }
+  },
+
+  async startMicTest() {
+    try {
+      this.micTestStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: true
+        }
+      });
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      const testCtx = new AudioCtx();
+      if (testCtx.state === 'suspended') await testCtx.resume();
+
+      const source = testCtx.createMediaStreamSource(this.micTestStream);
+      const gain = testCtx.createGain();
+      gain.gain.value = 0.9;
+      source.connect(gain);
+      gain.connect(testCtx.destination);
+
+      this.micTestAudioNode = { ctx: testCtx, gain, source };
+      this.isTestingMic = true;
+      App.showToast('🔊 Speaking test active: speak to hear your voice through your speakers');
+    } catch (e) {
+      console.error('Mic test error:', e);
+      App.showToast('Could not access microphone for test: ' + e.message);
+    }
+  },
+
+  stopMicTest() {
+    if (this.micTestStream) {
+      this.micTestStream.getTracks().forEach(t => t.stop());
+      this.micTestStream = null;
+    }
+    if (this.micTestAudioNode) {
+      try {
+        this.micTestAudioNode.ctx.close();
+      } catch (e) {}
+      this.micTestAudioNode = null;
+    }
+    this.isTestingMic = false;
+  },
+
   // ================= Web Audio API Synthesized Chimes & Ringtones =================
 
   playOutgoingRinging() {
@@ -770,7 +1003,7 @@ const CallManager = {
         const osc2 = this.audioCtx.createOscillator();
         const gain = this.audioCtx.createGain();
 
-        osc1.frequency.value = 440; // Standard US ringtone 440Hz + 480Hz
+        osc1.frequency.value = 440; // 440Hz + 480Hz US ringing
         osc2.frequency.value = 480;
 
         gain.gain.setValueAtTime(0.08, now);
