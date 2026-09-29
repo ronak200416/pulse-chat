@@ -16,8 +16,26 @@ const CallManager = {
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
       { urls: 'stun:stun2.l.google.com:19302' },
-      { urls: 'stun:stun.services.mozilla.com' }
-    ]
+      { urls: 'stun:stun.services.mozilla.com' },
+      { urls: 'stun:stun.cloudflare.com:3478' },
+      // Free OpenRelay TURN servers for NAT / 4G / Firewall bypass on Render
+      {
+        urls: 'turn:openrelay.metered.ca:80',
+        username: 'openrelay',
+        credential: 'openrelay'
+      },
+      {
+        urls: 'turn:openrelay.metered.ca:443',
+        username: 'openrelay',
+        credential: 'openrelay'
+      },
+      {
+        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+        username: 'openrelay',
+        credential: 'openrelay'
+      }
+    ],
+    iceCandidatePoolSize: 10
   },
 
   init() {
