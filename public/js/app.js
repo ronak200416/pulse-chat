@@ -116,7 +116,7 @@ const App = {
       });
     }
 
-    // Video & Voice Call Header Buttons
+    // Voice Call Header Buttons
     const btnHeaderCall = document.getElementById('btn-header-call');
     if (btnHeaderCall) {
       btnHeaderCall.addEventListener('click', () => {
@@ -130,28 +130,7 @@ const App = {
             partner.id,
             partner.display_name || partner.username,
             partner.avatar_url || '',
-            partner.avatar_color || '#6366f1',
-            false
-          );
-        }
-      });
-    }
-
-    const btnHeaderVideoCall = document.getElementById('btn-header-video-call');
-    if (btnHeaderVideoCall) {
-      btnHeaderVideoCall.addEventListener('click', () => {
-        if (this.currentRoom && this.currentRoom.type === 'direct') {
-          const partner = this.friends.find(f => f.id === this.currentRoom.recipientId) || {
-            id: this.currentRoom.recipientId,
-            display_name: this.currentRoom.name,
-            username: this.currentRoom.name
-          };
-          CallManager.startDirectCall(
-            partner.id,
-            partner.display_name || partner.username,
-            partner.avatar_url || '',
-            partner.avatar_color || '#6366f1',
-            true
+            partner.avatar_color || '#6366f1'
           );
         }
       });
@@ -161,16 +140,7 @@ const App = {
     if (btnHeaderJoinVoice) {
       btnHeaderJoinVoice.addEventListener('click', () => {
         if (this.currentRoom && this.currentRoom.type === 'channel') {
-          CallManager.joinGroupVoice(this.currentRoom.id, this.currentRoom.name, false);
-        }
-      });
-    }
-
-    const btnHeaderJoinVideo = document.getElementById('btn-header-join-video');
-    if (btnHeaderJoinVideo) {
-      btnHeaderJoinVideo.addEventListener('click', () => {
-        if (this.currentRoom && this.currentRoom.type === 'channel') {
-          CallManager.joinGroupVoice(this.currentRoom.id, this.currentRoom.name, true);
+          CallManager.joinGroupVoice(this.currentRoom.id, this.currentRoom.name);
         }
       });
     }
@@ -486,11 +456,8 @@ const App = {
           <button class="btn btn-sm btn-primary" onclick="App.openDirectMessage('${user.id}', '${this.escapeHtml(user.display_name || user.username)}'); document.getElementById('user-profile-modal').classList.remove('active');">
             💬 Message
           </button>
-          <button class="btn btn-sm btn-success" onclick="CallManager.startDirectCall('${user.id}', '${this.escapeHtml(user.display_name || user.username)}', '${user.avatar_url || ''}', '${user.avatar_color || '#6366f1'}', false); document.getElementById('user-profile-modal').classList.remove('active');">
+          <button class="btn btn-sm btn-success" onclick="CallManager.startDirectCall('${user.id}', '${this.escapeHtml(user.display_name || user.username)}', '${user.avatar_url || ''}', '${user.avatar_color || '#6366f1'}'); document.getElementById('user-profile-modal').classList.remove('active');">
             📞 Voice Call
-          </button>
-          <button class="btn btn-sm btn-primary" style="background:#8b5cf6;" onclick="CallManager.startDirectCall('${user.id}', '${this.escapeHtml(user.display_name || user.username)}', '${user.avatar_url || ''}', '${user.avatar_color || '#6366f1'}', true); document.getElementById('user-profile-modal').classList.remove('active');">
-            📹 Video Call
           </button>
           <button class="btn btn-sm btn-glass text-danger" onclick="App.removeFriend('${user.id}', '${this.escapeHtml(user.username)}'); document.getElementById('user-profile-modal').classList.remove('active');">
             ✕ Unfriend
@@ -619,11 +586,8 @@ const App = {
             <button class="btn-friend-msg" title="Direct Message" onclick="App.openDirectMessage('${u.id}', '${this.escapeHtml(u.display_name || u.username)}')">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> <span>Chat</span>
             </button>
-            <button class="btn-friend-call" title="Voice Call" onclick="CallManager.startDirectCall('${u.id}', '${this.escapeHtml(u.display_name || u.username)}', '${u.avatar_url || ''}', '${u.avatar_color || '#6366f1'}', false)">
-              📞
-            </button>
-            <button class="btn-friend-call btn-friend-video" title="Video Call" onclick="CallManager.startDirectCall('${u.id}', '${this.escapeHtml(u.display_name || u.username)}', '${u.avatar_url || ''}', '${u.avatar_color || '#6366f1'}', true)">
-              📹
+            <button class="btn-friend-call" title="Voice Call" onclick="CallManager.startDirectCall('${u.id}', '${this.escapeHtml(u.display_name || u.username)}', '${u.avatar_url || ''}', '${u.avatar_color || '#6366f1'}')">
+              📞 Call
             </button>
           `;
         } else if (u.relationship === 'pending_sent') {
@@ -1591,21 +1555,15 @@ const App = {
       this.socket.emit('join_room', room.id);
     }
 
-    // Call header buttons toggle
+    // Header voice call buttons toggle
     const btnCall = document.getElementById('btn-header-call');
-    const btnVideoCall = document.getElementById('btn-header-video-call');
     const btnVoice = document.getElementById('btn-header-join-voice');
-    const btnVideo = document.getElementById('btn-header-join-video');
     if (room.type === 'direct') {
       if (btnCall) btnCall.style.display = 'inline-flex';
-      if (btnVideoCall) btnVideoCall.style.display = 'inline-flex';
       if (btnVoice) btnVoice.style.display = 'none';
-      if (btnVideo) btnVideo.style.display = 'none';
     } else {
       if (btnCall) btnCall.style.display = 'none';
-      if (btnVideoCall) btnVideoCall.style.display = 'none';
       if (btnVoice) btnVoice.style.display = 'inline-flex';
-      if (btnVideo) btnVideo.style.display = 'inline-flex';
     }
 
     this.renderChannelsList();

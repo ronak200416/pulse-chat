@@ -755,13 +755,13 @@ class DatabaseService {
       return { error: 'You cannot send a friend request to yourself.' };
     }
 
+    const now = Date.now();
+
     // Check existing relation in both directions
     const existing = await this.getOne(
       'SELECT * FROM friend_requests WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)',
       [senderId, receiver.id, receiver.id, senderId]
     );
-
-    const now = Date.now();
 
     if (existing) {
       if (existing.status === 'accepted') {
@@ -776,9 +776,10 @@ class DatabaseService {
         const friendUser = await this.getUserById(receiver.id);
         return { success: true, auto_accepted: true, message: `You and @${receiver.username} are now friends!`, friend: friendUser, requestId: existing.id, receiver_id: receiver.id };
       }
-      // If rejected, cancelled or stale, clean up conflicting rows and recreate fresh
-      await this.run('DELETE FROM friend_requests WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)', [senderId, receiver.id, receiver.id, senderId]);
     }
+
+    // Clean up any old/stale requests between these users before creating fresh
+    await this.run('DELETE FROM friend_requests WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)', [senderId, receiver.id, receiver.id, senderId]);
 
     const reqId = `freq_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     await this.run(
