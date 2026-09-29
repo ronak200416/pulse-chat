@@ -326,13 +326,23 @@ const App = {
     if (btnSidebarLeave) btnSidebarLeave.addEventListener('click', handleLeave);
   },
 
+  handleFriendSubmit() {
+    const input = document.getElementById('friend-search-input');
+    const q = input ? input.value.trim() : '';
+    if (!q) {
+      this.showToast('Please type a username to send a friend request');
+      return;
+    }
+    this.sendFriendRequest(q);
+  },
+
   bindFriendModalEvents() {
     const btnOpenModal = document.getElementById('btn-open-friend-modal');
     const modal = document.getElementById('friend-manager-modal');
     const btnCloseModal = document.getElementById('btn-close-friend-modal');
     const tabBtns = document.querySelectorAll('.friend-tab-btn');
     const searchInput = document.getElementById('friend-search-input');
-    const btnSubmit = document.getElementById('btn-submit-friend-request');
+    const friendForm = document.getElementById('form-friend-search');
 
     if (btnOpenModal) {
       btnOpenModal.addEventListener('click', () => {
@@ -346,7 +356,6 @@ const App = {
       });
     }
 
-    // Escape key to close friend modal
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && modal && modal.classList.contains('active')) {
         modal.classList.remove('active');
@@ -360,17 +369,11 @@ const App = {
       });
     });
 
-    const handleFriendSubmit = () => {
-      const q = searchInput ? searchInput.value.trim() : '';
-      if (!q) {
-        this.performFriendSearch('');
-        return;
-      }
-      this.sendFriendRequest(q);
-    };
-
-    if (btnSubmit) {
-      btnSubmit.addEventListener('click', handleFriendSubmit);
+    if (friendForm) {
+      friendForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.handleFriendSubmit();
+      });
     }
 
     if (searchInput) {
@@ -380,13 +383,6 @@ const App = {
         this.friendSearchDebounce = setTimeout(() => {
           this.performFriendSearch(q);
         }, 300);
-      });
-
-      searchInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          handleFriendSubmit();
-        }
       });
     }
   },

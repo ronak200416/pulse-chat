@@ -1,19 +1,15 @@
-// Simple & Robust WebRTC Voice & Video Calling Engine
+// Ultra-Reliable & Simple WebRTC Voice & Video Calling Engine
 const CallManager = {
   activeCall: null, // { type: 'direct'|'group', callId, partnerId, partnerName, partnerAvatar, partnerColor, channelId, channelName, startTime, timerInterval, isCaller, callType: 'audio'|'video' }
   localStream: null,
-  localVideoStream: null,
-  screenStream: null,
   peerConnections: new Map(), // 'direct' or socketId -> RTCPeerConnection
   pendingCandidates: new Map(), // 'direct' or socketId -> RTCIceCandidate[]
-  audioElements: new Map(), // 'direct' or socketId -> HTMLAudioElement
+  audioElements: new Map(),
   remoteStreams: new Map(),
   
   isMuted: false,
   isCameraOn: false,
-  isScreenSharing: false,
   isStageOpen: false,
-  isFullscreen: false,
 
   rtcConfig: {
     iceServers: [
@@ -89,22 +85,19 @@ const CallManager = {
           if (pc && pc.remoteDescription && pc.remoteDescription.type) {
             try {
               await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
-            } catch (err) {
-              console.warn('Direct addIceCandidate error:', err);
-            }
+            } catch (err) {}
           } else {
             this.queuePendingCandidate('direct', signal.candidate);
           }
         }
       } catch (err) {
-        console.error('Direct call signal error:', err);
+        console.error('Signaling error:', err);
       }
     });
 
-    // 1-on-1 Call Accepted by Callee -> Caller sends Offer
+    // 1-on-1 Call Accepted by Callee -> Caller creates Offer
     App.socket.on('voice_call_accepted', async ({ recipient, callId }) => {
       if (!this.activeCall || this.activeCall.callId !== callId) return;
-      this.stopRingtone();
       this.updateCallStatus('Connected');
       this.startCallTimer();
 
@@ -126,34 +119,31 @@ const CallManager = {
           callId
         });
       } catch (err) {
-        console.error('Offer creation error on accept:', err);
+        console.error('Error creating offer on accepted:', err);
       }
     });
 
     // 1-on-1 Call Declined
     App.socket.on('voice_call_declined', ({ reason }) => {
-      this.stopRingtone();
-      App.showToast(reason || 'Call was declined');
+      App.showToast(reason || 'Call declined');
       this.cleanupCall();
     });
 
     // 1-on-1 Call Ended
     App.socket.on('voice_call_ended', () => {
-      this.stopRingtone();
       App.showToast('Call ended');
       this.cleanupCall();
     });
 
     // Media state sync (camera on/off)
-    App.socket.on('call_media_state_changed', ({ isVideoOn, isScreenSharing, isMuted }) => {
-      this.updateRemoteMediaUI({ isVideoOn, isScreenSharing, isMuted });
+    App.socket.on('call_media_state_changed', ({ isVideoOn, isMuted }) => {
+      this.updateRemoteMediaUI({ isVideoOn, isMuted });
     });
 
-    // Group Voice Room Events
+    // Group calls
     App.socket.on('user_joined_group_voice', async ({ socketId, user, channelId }) => {
       if (!this.activeCall || this.activeCall.type !== 'group' || this.activeCall.channelId !== channelId) return;
       App.showToast(`🎙️ ${user.display_name || user.username} joined call`);
-      this.addParticipantToGroupCallUI(socketId, user);
       this.createGroupPeerConnection(socketId, user, false);
     });
 
@@ -184,14 +174,12 @@ const CallManager = {
           }
         } else if (signal.candidate) {
           if (pc && pc.remoteDescription && pc.remoteDescription.type) {
-            try {
-              await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
-            } catch (err) {}
+            try { await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)); } catch (e) {}
           } else {
             this.queuePendingCandidate(fromSocketId, signal.candidate);
           }
         }
-      } catch (err) {}
+      } catch (e) {}
     });
 
     App.socket.on('user_left_group_voice', ({ socketId }) => {
@@ -200,12 +188,11 @@ const CallManager = {
         this.peerConnections.delete(socketId);
       }
       if (this.audioElements.has(socketId)) {
-        const audio = this.audioElements.get(socketId);
-        audio.srcObject = null;
-        audio.remove();
+        const a = this.audioElements.get(socketId);
+        a.srcObject = null;
+        a.remove();
         this.audioElements.delete(socketId);
       }
-      this.removeParticipantFromGroupCallUI(socketId);
     });
   },
 
@@ -294,19 +281,15 @@ const CallManager = {
     if (barInfoClick) barInfoClick.addEventListener('click', () => this.openVideoStage());
     if (btnBarEnd) btnBarEnd.addEventListener('click', () => this.endCall());
 
-    // Video Stage Modal Simplified Actions
+    // Video Stage Modal Simplified 3 Controls (Mic, Camera, End Call)
     const btnStageMute = document.getElementById('btn-stage-mute');
     const btnStageVideo = document.getElementById('btn-stage-video');
-    const btnStageScreen = document.getElementById('btn-stage-screenshare');
     const btnStageMin = document.getElementById('btn-video-stage-minimize');
-    const btnStageFull = document.getElementById('btn-video-stage-fullscreen');
     const btnStageEnd = document.getElementById('btn-stage-end');
 
     if (btnStageMute) btnStageMute.addEventListener('click', () => this.toggleMute());
     if (btnStageVideo) btnStageVideo.addEventListener('click', () => this.toggleCamera());
-    if (btnStageScreen) btnStageScreen.addEventListener('click', () => this.toggleScreenShare());
     if (btnStageMin) btnStageMin.addEventListener('click', () => this.closeVideoStage());
-    if (btnStageFull) btnStageFull.addEventListener('click', () => this.toggleFullscreen());
     if (btnStageEnd) btnStageEnd.addEventListener('click', () => this.endCall());
   },
 
@@ -321,7 +304,7 @@ const CallManager = {
     try {
       await this.acquireLocalMedia(isVideo);
     } catch (err) {
-      console.error('Media acquisition error:', err);
+      console.error('Media error:', err);
       App.showToast(isVideo ? 'Camera or microphone access denied' : 'Microphone access denied');
       return;
     }
@@ -358,7 +341,6 @@ const CallManager = {
         this.openVideoStage();
       }
 
-      this.playOutgoingRinging();
       this.createDirectPeerConnection(partnerId, callId);
     });
   },
@@ -404,11 +386,9 @@ const CallManager = {
     }
 
     if (modal) modal.classList.add('active');
-    this.playIncomingRingtone();
   },
 
   async acceptCall(withVideo = null) {
-    this.stopRingtone();
     const modal = document.getElementById('incoming-call-modal');
     if (modal) modal.classList.remove('active');
 
@@ -419,7 +399,7 @@ const CallManager = {
     try {
       await this.acquireLocalMedia(requestVideo);
     } catch (err) {
-      console.error('Media permission error on accept:', err);
+      console.error('Permission error on accept:', err);
       App.showToast('Microphone & camera permissions required');
       this.declineCall();
       return;
@@ -457,14 +437,14 @@ const CallManager = {
     const pc = new RTCPeerConnection(this.rtcConfig);
     this.peerConnections.set('direct', pc);
 
-    // Attach all local tracks
+    // Attach all local tracks (audio + video)
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => {
         pc.addTrack(track, this.localStream);
       });
     }
 
-    // Ensure audio & video transceivers exist upfront for bidirectional negotiation
+    // Ensure video transceiver is available in SDP offer/answer
     try {
       const transceivers = pc.getTransceivers ? pc.getTransceivers() : [];
       if (!transceivers.some(t => t.receiver?.track?.kind === 'video') && pc.addTransceiver) {
@@ -472,9 +452,10 @@ const CallManager = {
       }
     } catch (e) {}
 
-    // Remote track handler
+    // Incoming Remote Stream & Track Handler
     pc.ontrack = (event) => {
-      let stream = event.streams && event.streams[0] ? event.streams[0] : new MediaStream([event.track]);
+      console.log('Got remote track:', event.track.kind);
+      const stream = event.streams && event.streams[0] ? event.streams[0] : new MediaStream([event.track]);
       this.remoteStreams.set('direct', stream);
 
       if (event.track.kind === 'audio') {
@@ -508,7 +489,6 @@ const CallManager = {
   },
 
   declineCall() {
-    this.stopRingtone();
     const modal = document.getElementById('incoming-call-modal');
     if (modal) modal.classList.remove('active');
 
@@ -524,8 +504,6 @@ const CallManager = {
 
   endCall() {
     if (!this.activeCall) return;
-
-    this.stopRingtone();
 
     if (this.activeCall.type === 'direct') {
       App.socket.emit('voice_call_end', {
@@ -553,7 +531,7 @@ const CallManager = {
     try {
       await this.acquireLocalMedia(isVideo);
     } catch (err) {
-      console.error('Media error joining group call:', err);
+      console.error('Media error:', err);
       App.showToast('Microphone access is required');
       return;
     }
@@ -589,7 +567,6 @@ const CallManager = {
 
       const participants = res.participants || [];
       for (const p of participants) {
-        this.addParticipantToGroupCallUI(p.socketId, p.user);
         await this.createGroupPeerConnection(p.socketId, p.user, true);
       }
     });
@@ -604,9 +581,7 @@ const CallManager = {
 
   async createGroupPeerConnection(targetSocketId, targetUser, isInitiator) {
     if (this.peerConnections.has(targetSocketId)) {
-      try {
-        this.peerConnections.get(targetSocketId).close();
-      } catch (e) {}
+      try { this.peerConnections.get(targetSocketId).close(); } catch (e) {}
     }
 
     const pc = new RTCPeerConnection(this.rtcConfig);
@@ -619,9 +594,7 @@ const CallManager = {
     }
 
     try {
-      if (pc.addTransceiver) {
-        pc.addTransceiver('video', { direction: 'sendrecv' });
-      }
+      if (pc.addTransceiver) pc.addTransceiver('video', { direction: 'sendrecv' });
     } catch (e) {}
 
     pc.ontrack = (event) => {
@@ -648,10 +621,7 @@ const CallManager = {
 
     if (isInitiator) {
       try {
-        const offer = await pc.createOffer({
-          offerToReceiveAudio: true,
-          offerToReceiveVideo: true
-        });
+        const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
         await pc.setLocalDescription(offer);
         App.socket.emit('group_voice_signal', {
           targetSocketId,
@@ -687,7 +657,7 @@ const CallManager = {
       this.isCameraOn = Boolean(enableVideo && this.localStream.getVideoTracks().length > 0);
     } catch (err) {
       if (enableVideo) {
-        console.warn('Video acquisition failed, falling back to audio only:', err);
+        console.warn('Video acquisition failed, falling back to audio:', err);
         this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
         this.isCameraOn = false;
       } else {
@@ -704,25 +674,12 @@ const CallManager = {
       this.localStream.getTracks().forEach(t => t.stop());
       this.localStream = null;
     }
-    if (this.localVideoStream) {
-      this.localVideoStream.getTracks().forEach(t => t.stop());
-      this.localVideoStream = null;
-    }
-    if (this.screenStream) {
-      this.screenStream.getTracks().forEach(t => t.stop());
-      this.screenStream = null;
-    }
     this.isCameraOn = false;
-    this.isScreenSharing = false;
   },
 
   async toggleCamera() {
-    if (this.isScreenSharing) {
-      await this.stopScreenShare();
-    }
-
     if (this.isCameraOn) {
-      // Turn camera OFF
+      // Turn Camera OFF
       if (this.localStream) {
         this.localStream.getVideoTracks().forEach(t => {
           t.stop();
@@ -744,7 +701,7 @@ const CallManager = {
       this.updateControlsUI();
       this.updateLocalVideoPreview();
     } else {
-      // Turn camera ON
+      // Turn Camera ON
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
@@ -784,91 +741,9 @@ const CallManager = {
         }
       } catch (err) {
         console.error('Camera access failed:', err);
-        App.showToast('Camera permission denied');
+        App.showToast('Camera permission denied or camera not found');
       }
     }
-  },
-
-  async toggleScreenShare() {
-    if (this.isScreenSharing) {
-      await this.stopScreenShare();
-    } else {
-      try {
-        this.screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: { cursor: 'always' },
-          audio: true
-        });
-
-        const screenTrack = this.screenStream.getVideoTracks()[0];
-        screenTrack.onended = () => {
-          this.stopScreenShare();
-        };
-
-        if (this.localStream) {
-          this.localStream.getVideoTracks().forEach(t => this.localStream.removeTrack(t));
-          this.localStream.addTrack(screenTrack);
-        }
-
-        this.peerConnections.forEach(async (pc) => {
-          const senders = pc.getSenders ? pc.getSenders() : [];
-          const vidSender = senders.find(s => (s.track && s.track.kind === 'video') || (s.track === null));
-          if (vidSender) {
-            await vidSender.replaceTrack(screenTrack);
-          } else {
-            pc.addTrack(screenTrack, this.localStream);
-            this.renegotiatePeerConnection(pc);
-          }
-        });
-
-        this.isScreenSharing = true;
-        App.showToast('Screen sharing started 🖥️');
-        this.broadcastMediaState();
-        this.updateControlsUI();
-        this.updateLocalVideoPreview();
-
-        if (!this.isStageOpen) {
-          this.openVideoStage();
-        }
-      } catch (err) {
-        console.warn('Screen share canceled:', err);
-      }
-    }
-  },
-
-  async stopScreenShare() {
-    if (this.screenStream) {
-      this.screenStream.getTracks().forEach(t => t.stop());
-      this.screenStream = null;
-    }
-
-    this.isScreenSharing = false;
-
-    if (this.isCameraOn) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        const camTrack = stream.getVideoTracks()[0];
-        if (this.localStream) {
-          this.localStream.getVideoTracks().forEach(t => this.localStream.removeTrack(t));
-          this.localStream.addTrack(camTrack);
-        }
-        this.peerConnections.forEach(pc => {
-          const senders = pc.getSenders ? pc.getSenders() : [];
-          const vidSender = senders.find(s => s.track && s.track.kind === 'video');
-          if (vidSender) vidSender.replaceTrack(camTrack).catch(() => {});
-        });
-      } catch (e) {}
-    } else {
-      this.peerConnections.forEach(pc => {
-        const senders = pc.getSenders ? pc.getSenders() : [];
-        const vidSender = senders.find(s => s.track && s.track.kind === 'video');
-        if (vidSender) vidSender.replaceTrack(null).catch(() => {});
-      });
-    }
-
-    App.showToast('Screen sharing ended');
-    this.broadcastMediaState();
-    this.updateControlsUI();
-    this.updateLocalVideoPreview();
   },
 
   async renegotiatePeerConnection(pc) {
@@ -893,8 +768,7 @@ const CallManager = {
   broadcastMediaState() {
     if (!this.activeCall) return;
     const payload = {
-      isVideoOn: this.isCameraOn || this.isScreenSharing,
-      isScreenSharing: this.isScreenSharing,
+      isVideoOn: this.isCameraOn,
       isMuted: this.isMuted
     };
 
@@ -911,7 +785,7 @@ const CallManager = {
     }
   },
 
-  // ================= Audio Output & Video Playback =================
+  // ================= Audio & Video Playback =================
 
   attachRemoteAudio(id, stream) {
     let audio = this.audioElements.get(id);
@@ -929,8 +803,7 @@ const CallManager = {
     }
 
     audio.srcObject = stream;
-    const p = audio.play();
-    if (p !== undefined) p.catch(() => {});
+    audio.play().catch(() => {});
   },
 
   attachRemoteVideo(id, stream) {
@@ -940,8 +813,7 @@ const CallManager = {
     if (videoEl) {
       videoEl.srcObject = stream;
       videoEl.style.display = 'block';
-      const p = videoEl.play();
-      if (p !== undefined) p.catch(() => {});
+      videoEl.play().catch(e => console.warn('Remote video playback:', e));
       if (fallbackEl) fallbackEl.style.display = 'none';
     }
 
@@ -1015,13 +887,12 @@ const CallManager = {
       micStatus.style.color = this.isMuted ? '#ef4444' : '#34d399';
     }
 
-    const hasVideo = (this.isCameraOn || this.isScreenSharing) && this.localStream && this.localStream.getVideoTracks().length > 0;
+    const hasVideo = this.isCameraOn && this.localStream && this.localStream.getVideoTracks().length > 0;
     if (vidEl) {
       if (hasVideo) {
         vidEl.srcObject = this.localStream;
         vidEl.style.display = 'block';
-        const p = vidEl.play();
-        if (p !== undefined) p.catch(() => {});
+        vidEl.play().catch(() => {});
         if (fallbackEl) fallbackEl.style.display = 'none';
       } else {
         vidEl.srcObject = null;
@@ -1050,7 +921,7 @@ const CallManager = {
           : `#${this.activeCall.channelName} Video Room`;
       }
       if (typeBadge) {
-        typeBadge.textContent = this.isCameraOn || this.isScreenSharing ? 'LIVE VIDEO' : 'CALL';
+        typeBadge.textContent = this.isCameraOn ? 'LIVE VIDEO' : 'CALL';
       }
 
       if (this.activeCall.type === 'direct') {
@@ -1086,19 +957,6 @@ const CallManager = {
     }
   },
 
-  toggleFullscreen() {
-    const stage = document.getElementById('video-stage-container');
-    if (!stage) return;
-
-    if (!document.fullscreenElement) {
-      stage.requestFullscreen().catch(() => {});
-      this.isFullscreen = true;
-    } else {
-      document.exitFullscreen().catch(() => {});
-      this.isFullscreen = false;
-    }
-  },
-
   toggleMute() {
     this.isMuted = !this.isMuted;
     if (this.localStream) {
@@ -1109,29 +967,29 @@ const CallManager = {
 
     this.broadcastMediaState();
     this.updateControlsUI();
-    App.showToast(this.isMuted ? 'Muted 🔇' : 'Unmuted 🎤');
+    App.showToast(this.isMuted ? 'Microphone Muted 🔇' : 'Microphone Unmuted 🎤');
   },
 
   updateControlsUI() {
     const btnMute = document.getElementById('btn-stage-mute');
     const muteIcon = document.getElementById('stage-mute-icon');
+    const muteLabel = document.getElementById('stage-mute-label');
+
     const btnVideo = document.getElementById('btn-stage-video');
     const videoIcon = document.getElementById('stage-video-icon');
-    const btnScreen = document.getElementById('btn-stage-screenshare');
+    const videoLabel = document.getElementById('stage-video-label');
 
     if (btnMute && muteIcon) {
       btnMute.classList.toggle('active-control-danger', this.isMuted);
       muteIcon.textContent = this.isMuted ? '🔇' : '🎤';
+      if (muteLabel) muteLabel.textContent = this.isMuted ? 'Unmute' : 'Mute';
     }
 
     if (btnVideo && videoIcon) {
       btnVideo.classList.toggle('active-control-success', this.isCameraOn);
       btnVideo.classList.toggle('active-control-danger', !this.isCameraOn);
       videoIcon.textContent = this.isCameraOn ? '📹' : '📷';
-    }
-
-    if (btnScreen) {
-      btnScreen.classList.toggle('active-control-accent', this.isScreenSharing);
+      if (videoLabel) videoLabel.textContent = this.isCameraOn ? 'Cam Off' : 'Cam On';
     }
 
     // Floating Bar Controls
@@ -1191,29 +1049,6 @@ const CallManager = {
     }
   },
 
-  addParticipantToGroupCallUI(socketId, user) {
-    const container = document.getElementById('active-call-participants');
-    if (!container) return;
-
-    if (!document.getElementById(`call-avatar-${socketId}`)) {
-      const dot = document.createElement('div');
-      dot.className = 'active-call-avatar';
-      dot.id = `call-avatar-${socketId}`;
-      dot.title = user.display_name || user.username;
-      dot.style.backgroundColor = user.avatar_color || '#6366f1';
-      dot.textContent = (user.display_name || user.username).charAt(0).toUpperCase();
-      container.appendChild(dot);
-    }
-  },
-
-  removeParticipantFromGroupCallUI(socketId) {
-    const dot = document.getElementById(`call-avatar-${socketId}`);
-    if (dot) dot.remove();
-
-    const tile = document.getElementById(`group-tile-${socketId}`);
-    if (tile) tile.remove();
-  },
-
   queuePendingCandidate(id, candidate) {
     if (!this.pendingCandidates.has(id)) {
       this.pendingCandidates.set(id, []);
@@ -1231,21 +1066,7 @@ const CallManager = {
     this.pendingCandidates.delete(id);
   },
 
-  playOutgoingRinging() {
-    this.stopRingtone();
-  },
-
-  playIncomingRingtone() {
-    this.stopRingtone();
-  },
-
-  stopRingtone() {
-    clearInterval(this.ringTimer);
-    this.ringTimer = null;
-  },
-
   cleanupCall() {
-    this.stopRingtone();
     clearInterval(this.activeCall?.timerInterval);
 
     this.peerConnections.forEach(pc => {
@@ -1270,24 +1091,16 @@ const CallManager = {
     if (modal) modal.classList.remove('active');
 
     const remoteVid = document.getElementById('remote-video-feed');
-    if (remoteVid) {
-      remoteVid.srcObject = null;
-    }
+    if (remoteVid) remoteVid.srcObject = null;
     const localVid = document.getElementById('local-video-feed');
-    if (localVid) {
-      localVid.srcObject = null;
-    }
+    if (localVid) localVid.srcObject = null;
 
     const groupGrid = document.getElementById('video-stage-group-grid');
     if (groupGrid) groupGrid.innerHTML = '';
 
-    const partsContainer = document.getElementById('active-call-participants');
-    if (partsContainer) partsContainer.innerHTML = '';
-
     this.activeCall = null;
     this.isMuted = false;
     this.isCameraOn = false;
-    this.isScreenSharing = false;
 
     this.updateGroupVoiceButtonUI(false);
   }
