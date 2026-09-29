@@ -657,30 +657,33 @@ const CallManager = {
   async acquireLocalMedia(enableVideo = false) {
     this.stopLocalMedia();
 
-    const constraints = {
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true
-      },
-      video: enableVideo ? {
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        facingMode: 'user'
-      } : false
-    };
-
-    try {
-      this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
-      this.isCameraOn = Boolean(enableVideo && this.localStream.getVideoTracks().length > 0);
-    } catch (err) {
-      if (enableVideo) {
-        console.warn('Video acquisition failed, falling back to audio:', err);
-        this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        this.isCameraOn = false;
-      } else {
-        throw err;
+    if (enableVideo) {
+      // Try 720p first, then fallback to basic webcam for 100% PC / Laptop / Mobile compatibility
+      try {
+        this.localStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+        this.isCameraOn = this.localStream.getVideoTracks().length > 0;
+      } catch (err1) {
+        try {
+          this.localStream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: true
+          });
+          this.isCameraOn = this.localStream.getVideoTracks().length > 0;
+        } catch (err2) {
+          console.warn('Camera failed, falling back to audio only:', err2);
+          this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+          this.isCameraOn = false;
+        }
       }
+    } else {
+      this.localStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        video: false
+      });
+      this.isCameraOn = false;
     }
 
     this.updateControlsUI();
@@ -721,10 +724,18 @@ const CallManager = {
     } else {
       // Turn Camera ON
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }
-        });
+        let stream = null;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: { width: { ideal: 1280 }, height: { ideal: 720 } }
+          });
+        } catch (e1) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: true
+          });
+        }
 
         const newVideoTrack = stream.getVideoTracks()[0];
         if (this.localStream) {
@@ -758,7 +769,7 @@ const CallManager = {
           this.openVideoStage();
         }
       } catch (err) {
-        console.error('Camera access failed:', err);
+        console.error('Camera access failed on PC/Mobile:', err);
         App.showToast('Camera permission denied or camera not found');
       }
     }
@@ -831,7 +842,10 @@ const CallManager = {
     if (videoEl) {
       videoEl.srcObject = stream;
       videoEl.style.display = 'block';
-      videoEl.play().catch(e => console.warn('Remote video playback:', e));
+      videoEl.onloadedmetadata = () => {
+        videoEl.play().catch(() => {});
+      };
+      videoEl.play().catch(() => {});
       if (fallbackEl) fallbackEl.style.display = 'none';
     }
 
@@ -910,6 +924,9 @@ const CallManager = {
       if (hasVideo) {
         vidEl.srcObject = this.localStream;
         vidEl.style.display = 'block';
+        vidEl.onloadedmetadata = () => {
+          vidEl.play().catch(() => {});
+        };
         vidEl.play().catch(() => {});
         if (fallbackEl) fallbackEl.style.display = 'none';
       } else {
