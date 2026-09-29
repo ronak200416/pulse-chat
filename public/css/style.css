@@ -4418,3 +4418,81 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
     font-size: 1.05rem;
   }
 }
+
+/* Clean Simplified Video Controls Dock */
+.video-stage-controls-dock {
+  height: 80px;
+  padding: 0 20px;
+  background: rgba(11, 15, 25, 0.95);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.stage-ctrl-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 60px;
+  height: 56px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 4px 10px;
+}
+
+.stage-ctrl-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  transform: translateY(-2px);
+}
+
+.stage-ctrl-btn .ctrl-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.stage-ctrl-btn .ctrl-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.stage-ctrl-btn.active-control-danger {
+  background: rgba(239, 68, 68, 0.18) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  color: #f87171 !important;
+}
+
+.stage-ctrl-btn.active-control-success {
+  background: rgba(16, 185, 129, 0.18) !important;
+  border-color: rgba(16, 185, 129, 0.4) !important;
+  color: #34d399 !important;
+}
+
+.stage-ctrl-btn.active-control-accent {
+  background: rgba(99, 102, 241, 0.22) !important;
+  border-color: rgba(99, 102, 241, 0.5) !important;
+  color: #a5b4fc !important;
+}
+
+.btn-stage-end-call {
+  background: #ef4444 !important;
+  border-color: #dc2626 !important;
+  color: #ffffff !important;
+}
+
+.btn-stage-end-call:hover {
+  background: #dc2626 !important;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.5);
+}
+
+.btn-stage-end-call .ctrl-label {
+  color: #ffffff !important;
+}

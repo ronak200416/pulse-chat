@@ -845,7 +845,7 @@
   <!-- 6b. FULL VIDEO CALL THEATER & GRID STAGE MODAL -->
   <div id="video-call-modal" class="video-modal-overlay">
     <div class="video-stage-container" id="video-stage-container">
-      <!-- Video Header -->
+      <!-- Clean Video Header -->
       <div class="video-stage-header">
         <div class="video-stage-title-wrap">
           <div class="video-live-badge">
@@ -856,13 +856,10 @@
           <span class="video-stage-timer" id="video-stage-timer">00:00</span>
         </div>
         <div class="video-stage-header-actions">
-          <button class="video-icon-btn" id="btn-video-stage-pip" title="Picture in Picture">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><rect x="11" y="9" width="9" height="7" rx="1" ry="1"></rect></svg>
-          </button>
-          <button class="video-icon-btn" id="btn-video-stage-fullscreen" title="Toggle Fullscreen">
+          <button class="video-icon-btn" id="btn-video-stage-fullscreen" title="Fullscreen">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
           </button>
-          <button class="video-icon-btn" id="btn-video-stage-minimize" title="Minimize to Floating Bar">
+          <button class="video-icon-btn" id="btn-video-stage-minimize" title="Minimize Call">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline></svg>
           </button>
         </div>
@@ -887,7 +884,7 @@
 
         <!-- Local Video PiP View -->
         <div class="video-feed-pip" id="local-video-pip-container">
-          <video id="local-video-feed" autoplay playsinline muted class="video-element-pip"></video>
+          <video id="local-video-feed" autoplay playsinline muted="true" class="video-element-pip"></video>
           <!-- Fallback Avatar when local camera is off -->
           <div class="video-fallback-avatar pip-fallback" id="local-video-fallback" style="display:none;">
             <div class="fallback-avatar-circle pip-circle" id="local-fallback-avatar-circle" style="background-color:#ec4899;">Y</div>
@@ -899,12 +896,12 @@
         </div>
       </div>
 
-      <!-- Group Video Grid Stage View (Multi-user channel video room) -->
+      <!-- Group Video Grid Stage View -->
       <div class="video-stage-grid custom-scroll" id="video-stage-group-grid" style="display:none;">
         <!-- Dynamic participant video tiles injected here -->
       </div>
 
-      <!-- Bottom Interactive Controls Dock -->
+      <!-- Simplified Essential Controls Dock (4 clean buttons) -->
       <div class="video-stage-controls-dock" id="video-stage-controls">
         <button class="stage-ctrl-btn" id="btn-stage-mute" title="Mute / Unmute Microphone">
           <span class="ctrl-icon" id="stage-mute-icon">🎤</span>
@@ -918,27 +915,12 @@
 
         <button class="stage-ctrl-btn" id="btn-stage-screenshare" title="Share Screen">
           <span class="ctrl-icon" id="stage-screenshare-icon">🖥️</span>
-          <span class="ctrl-label">Share Screen</span>
-        </button>
-
-        <button class="stage-ctrl-btn" id="btn-stage-flip" title="Switch Camera" style="display:none;">
-          <span class="ctrl-icon">🔄</span>
-          <span class="ctrl-label">Flip</span>
-        </button>
-
-        <button class="stage-ctrl-btn" id="btn-stage-deafen" title="Deafen Audio">
-          <span class="ctrl-icon" id="stage-deafen-icon">🎧</span>
-          <span class="ctrl-label">Deafen</span>
-        </button>
-
-        <button class="stage-ctrl-btn" id="btn-stage-chat-toggle" title="Chat / Messages">
-          <span class="ctrl-icon">💬</span>
-          <span class="ctrl-label">Chat</span>
+          <span class="ctrl-label">Screen</span>
         </button>
 
         <button class="stage-ctrl-btn btn-stage-end-call" id="btn-stage-end" title="End Call">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91M1 1l22 22"/></svg>
-          <span class="ctrl-label">Leave</span>
+          <span class="ctrl-label">End</span>
         </button>
       </div>
     </div>

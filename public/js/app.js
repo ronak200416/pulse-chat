@@ -261,10 +261,10 @@ const App = {
               created_by: data.channel.created_by
             });
           } else if (data.error) {
-            alert(data.error);
+            this.showToast(data.error);
           }
         } catch (err) {
-          alert('Failed to create group');
+          this.showToast('Failed to create group');
         }
       });
     }
@@ -288,10 +288,10 @@ const App = {
           this.renderChannelsList();
           this.selectGeneralRoom();
         } else if (data.error) {
-          alert(data.error);
+          this.showToast(data.error);
         }
       } catch (err) {
-        alert('Failed to delete group');
+        this.showToast('Failed to delete group');
       }
     };
     if (btnHeaderDelete) btnHeaderDelete.addEventListener('click', handleDelete);
@@ -316,10 +316,10 @@ const App = {
           this.renderChannelsList();
           this.selectGeneralRoom();
         } else if (data.error) {
-          alert(data.error);
+          this.showToast(data.error);
         }
       } catch (err) {
-        alert('Failed to leave group');
+        this.showToast('Failed to leave group');
       }
     };
     if (btnHeaderLeave) btnHeaderLeave.addEventListener('click', handleLeave);
@@ -696,10 +696,10 @@ const App = {
           this.loadFriends();
         }
       } else if (data.error) {
-        alert(data.error);
+        this.showToast(data.error);
       }
     } catch (e) {
-      alert('Failed to send friend request');
+      this.showToast('Failed to send friend request');
     }
   },
 
@@ -724,10 +724,10 @@ const App = {
           this.performFriendSearch(searchInput.value.trim());
         }
       } else if (data.error) {
-        alert(data.error);
+        this.showToast(data.error);
       }
     } catch (e) {
-      alert('Failed to accept friend request');
+      this.showToast('Failed to accept friend request');
     }
   },
 
@@ -746,10 +746,10 @@ const App = {
         this.showToast('Request dismissed');
         this.loadFriendRequests();
       } else if (data.error) {
-        alert(data.error);
+        this.showToast(data.error);
       }
     } catch (e) {
-      alert('Failed to dismiss request');
+      this.showToast('Failed to dismiss request');
     }
   },
 
@@ -769,10 +769,10 @@ const App = {
           this.selectGeneralRoom();
         }
       } else if (data.error) {
-        alert(data.error);
+        this.showToast(data.error);
       }
     } catch (e) {
-      alert('Failed to remove friend');
+      this.showToast('Failed to remove friend');
     }
   },
 
@@ -1542,10 +1542,10 @@ const App = {
       if (data.success) {
         this.showToast(`Removed ${displayName} from group`);
       } else if (data.error) {
-        alert(data.error);
+        this.showToast(data.error);
       }
     } catch (e) {
-      alert('Failed to remove member');
+      this.showToast('Failed to remove member');
     }
   },
 

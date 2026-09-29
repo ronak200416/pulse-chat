@@ -744,7 +744,11 @@ class DatabaseService {
       receiver = await this.getOne('SELECT * FROM users WHERE LOWER(display_name) = ?', [clean]);
     }
     if (!receiver) {
-      return { error: `User "${raw}" not found. Please check the username or ID and try again.` };
+      // Partial fallback search
+      receiver = await this.getOne('SELECT * FROM users WHERE (LOWER(username) LIKE ? OR LOWER(display_name) LIKE ?) AND id != ? ORDER BY last_seen DESC LIMIT 1', [`%${clean}%`, `%${clean}%`, senderId]);
+    }
+    if (!receiver) {
+      return { error: `No user found matching "${raw}". Please check the username and try again.` };
     }
 
     if (receiver.id === senderId) {
