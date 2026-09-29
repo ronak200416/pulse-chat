@@ -243,6 +243,51 @@ app.get('/api/users/search', authenticateToken, async (req, res) => {
   }
 });
 
+// 6a2. Get Specific User Profile by ID (with relationship status)
+app.get('/api/users/:id', authenticateToken, async (req, res) => {
+  try {
+    const targetId = req.params.id;
+    const targetUser = await db.getUserById(targetId);
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const rel = await db.getOne(`
+      SELECT id, sender_id, receiver_id, status
+      FROM friend_requests
+      WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
+    `, [req.user.id, targetId, targetId, req.user.id]);
+
+    let relationship = 'none';
+    let requestId = null;
+    if (rel) {
+      requestId = rel.id;
+      if (rel.status === 'accepted') {
+        relationship = 'friends';
+      } else if (rel.status === 'pending') {
+        relationship = rel.sender_id === req.user.id ? 'pending_sent' : 'pending_received';
+      }
+    }
+
+    res.json({
+      user: {
+        id: targetUser.id,
+        username: targetUser.username,
+        display_name: targetUser.display_name,
+        avatar_color: targetUser.avatar_color,
+        avatar_url: targetUser.avatar_url,
+        bio: targetUser.bio,
+        status: targetUser.status,
+        last_seen: targetUser.last_seen,
+        relationship,
+        request_id: requestId
+      }
+    });
+  } catch (err) {
+    console.error('Get user profile error:', err);
+    res.status(500).json({ error: 'Failed to fetch user profile' });
+  }
+});
+
 // 6b. Send Friend Request
 app.post('/api/friends/request', authenticateToken, async (req, res) => {
   try {
@@ -360,6 +405,25 @@ app.post('/api/friends/reject', authenticateToken, async (req, res) => {
     if (result.error) {
       return res.status(400).json({ error: result.error });
     }
+
+    // Notify both parties to update UI in real-time
+    if (result.sender_id) {
+      const sSockets = userSocketMap.get(result.sender_id);
+      if (sSockets) {
+        for (const sId of sSockets) {
+          io.to(sId).emit('friend_request_rejected', { requestId, userId: req.user.id });
+        }
+      }
+    }
+    if (result.receiver_id) {
+      const rSockets = userSocketMap.get(result.receiver_id);
+      if (rSockets) {
+        for (const sId of rSockets) {
+          io.to(sId).emit('friend_request_rejected', { requestId, userId: req.user.id });
+        }
+      }
+    }
+
     res.json(result);
   } catch (err) {
     console.error('Reject friend request error:', err);
@@ -381,7 +445,23 @@ app.get('/api/friends', authenticateToken, async (req, res) => {
 // 6g. Remove Friend
 app.delete('/api/friends/:friendId', authenticateToken, async (req, res) => {
   try {
-    await db.removeFriend(req.user.id, req.params.friendId);
+    const friendId = req.params.friendId;
+    await db.removeFriend(req.user.id, friendId);
+
+    // Notify the removed friend via Socket
+    const friendSockets = userSocketMap.get(friendId);
+    if (friendSockets) {
+      for (const sId of friendSockets) {
+        io.to(sId).emit('friend_removed', { friendId: req.user.id });
+      }
+    }
+    const mySockets = userSocketMap.get(req.user.id);
+    if (mySockets) {
+      for (const sId of mySockets) {
+        io.to(sId).emit('friend_removed', { friendId });
+      }
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error('Remove friend error:', err);
@@ -889,6 +969,32 @@ io.on('connection', (socket) => {
           io.to(sId).emit('participant_speaking', {
             userId: currentUser.id,
             isSpeaking
+          });
+        }
+      }
+    }
+  });
+
+  // Call Media State Relay (Camera on/off, Screen share on/off)
+  socket.on('call_media_state', ({ channelId, targetUserId, isVideoOn, isScreenSharing, isMuted }) => {
+    if (!currentUser) return;
+    if (channelId) {
+      socket.to(`voice_${channelId}`).emit('call_media_state_changed', {
+        userId: currentUser.id,
+        socketId: socket.id,
+        isVideoOn,
+        isScreenSharing,
+        isMuted
+      });
+    } else if (targetUserId) {
+      const targetSockets = userSocketMap.get(targetUserId);
+      if (targetSockets) {
+        for (const sId of targetSockets) {
+          io.to(sId).emit('call_media_state_changed', {
+            userId: currentUser.id,
+            isVideoOn,
+            isScreenSharing,
+            isMuted
           });
         }
       }

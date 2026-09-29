@@ -1,21 +1,31 @@
-// WebRTC Voice Calling Engine for 1-on-1 and Group Audio Rooms
+// WebRTC Voice & Video Calling Engine for 1-on-1 and Group Mesh Channels
 const CallManager = {
-  activeCall: null, // { type: 'direct'|'group', callId, partnerId, partnerName, partnerAvatar, partnerColor, channelId, channelName, startTime, timerInterval, isCaller }
-  localStream: null,
+  activeCall: null, // { type: 'direct'|'group', callId, partnerId, partnerName, partnerAvatar, partnerColor, channelId, channelName, startTime, timerInterval, isCaller, callType: 'audio'|'video' }
+  localStream: null, // Combined local MediaStream
+  localAudioStream: null,
+  localVideoStream: null,
+  screenStream: null,
   peerConnections: new Map(), // Direct: 'direct' -> pc | Group: socketId -> pc
   pendingCandidates: new Map(), // Direct: 'direct' -> candidate[] | Group: socketId -> candidate[]
   audioElements: new Map(), // Direct: 'direct' -> audio | Group: socketId -> audio
+  remoteStreams: new Map(), // Direct: 'direct' -> stream | Group: socketId -> stream
+  remoteMediaStates: new Map(), // Direct: partnerId -> state | Group: socketId -> state
+  
   isMuted: false,
+  isCameraOn: false,
+  isScreenSharing: false,
   isDeafened: false,
+  isStageOpen: false,
+  isFullscreen: false,
+  isSpeaking: false,
+  
   audioCtx: null,
   ringToneOscillators: [],
   ringTimer: null,
   speakingAnalyser: null,
   speakingInterval: null,
-  isSpeaking: false,
-  isTestingMic: false,
-  micTestStream: null,
-  micTestAudioNode: null,
+  availableVideoDevices: [],
+  currentVideoDeviceIndex: 0,
 
   rtcConfig: {
     iceServers: [
@@ -33,6 +43,20 @@ const CallManager = {
     this.bindSocketEvents();
     this.bindUIEvents();
     this.setupGlobalAudioUnlock();
+    this.enumerateDevices();
+  },
+
+  async enumerateDevices() {
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        this.availableVideoDevices = devices.filter(d => d.kind === 'videoinput');
+        const flipBtn = document.getElementById('btn-stage-flip');
+        if (flipBtn && this.availableVideoDevices.length > 1) {
+          flipBtn.style.display = 'inline-flex';
+        }
+      }
+    } catch (e) {}
   },
 
   setupGlobalAudioUnlock() {
@@ -45,6 +69,14 @@ const CallManager = {
           audio.play().catch(() => {});
         }
       });
+      const remoteVid = document.getElementById('remote-video-feed');
+      if (remoteVid && remoteVid.paused && remoteVid.srcObject) {
+        remoteVid.play().catch(() => {});
+      }
+      const localVid = document.getElementById('local-video-feed');
+      if (localVid && localVid.paused && localVid.srcObject) {
+        localVid.play().catch(() => {});
+      }
     };
     document.addEventListener('click', unlock, { passive: true });
     document.addEventListener('touchstart', unlock, { passive: true });
@@ -100,7 +132,7 @@ const CallManager = {
           }
         }
       } catch (err) {
-        console.error('Error handling direct voice call signal:', err);
+        console.error('Error handling direct voice/video call signal:', err);
       }
     });
 
@@ -120,7 +152,7 @@ const CallManager = {
 
         const offer = await pc.createOffer({
           offerToReceiveAudio: true,
-          offerToReceiveVideo: false
+          offerToReceiveVideo: true
         });
         await pc.setLocalDescription(offer);
 
@@ -153,9 +185,8 @@ const CallManager = {
     // Group Voice Room: User Joined
     App.socket.on('user_joined_group_voice', async ({ socketId, user, channelId }) => {
       if (!this.activeCall || this.activeCall.type !== 'group' || this.activeCall.channelId !== channelId) return;
-      App.showToast(`🎙️ ${user.display_name || user.username} joined voice`);
+      App.showToast(`🎙️ ${user.display_name || user.username} joined call`);
       this.addParticipantToGroupCallUI(socketId, user);
-      // We are the existing member; create peer connection in passive mode (wait for joining member's offer)
       this.createGroupPeerConnection(socketId, user, false);
     });
 
@@ -198,7 +229,7 @@ const CallManager = {
           }
         }
       } catch (err) {
-        console.error('Group voice signal error:', err);
+        console.error('Group call signal error:', err);
       }
     });
 
@@ -222,6 +253,13 @@ const CallManager = {
       this.removeParticipantFromGroupCallUI(socketId);
     });
 
+    // Media State Changed (Camera On/Off, Screen Share On/Off)
+    App.socket.on('call_media_state_changed', ({ userId, socketId, isVideoOn, isScreenSharing, isMuted }) => {
+      const key = socketId || userId || 'direct';
+      this.remoteMediaStates.set(key, { isVideoOn, isScreenSharing, isMuted });
+      this.updateRemoteMediaUI(key, { isVideoOn, isScreenSharing, isMuted, userId });
+    });
+
     // Live Speaking Indicator Broadcast
     App.socket.on('participant_speaking', ({ userId, socketId, isSpeaking }) => {
       this.updateParticipantSpeakingUI(userId, socketId, isSpeaking);
@@ -229,7 +267,7 @@ const CallManager = {
   },
 
   bindUIEvents() {
-    // Header Call Button (Direct Message Call)
+    // Header Voice Call Button (Direct Call)
     const btnCall = document.getElementById('btn-header-call');
     if (btnCall) {
       btnCall.addEventListener('click', () => {
@@ -239,11 +277,25 @@ const CallManager = {
           App.showToast('You must add this user as a friend to voice call');
           return;
         }
-        this.startDirectCall(partner.id, partner.display_name || partner.username, partner.avatar_url, partner.avatar_color);
+        this.startDirectCall(partner.id, partner.display_name || partner.username, partner.avatar_url, partner.avatar_color, false);
       });
     }
 
-    // Header Join Voice Button (Group Channel Call)
+    // Header Video Call Button (Direct Call)
+    const btnVideoCall = document.getElementById('btn-header-video-call');
+    if (btnVideoCall) {
+      btnVideoCall.addEventListener('click', () => {
+        if (!App.currentRoom || App.currentRoom.type !== 'direct') return;
+        const partner = App.friends.find(f => f.id === App.currentRoom.recipientId);
+        if (!partner) {
+          App.showToast('You must add this user as a friend to video call');
+          return;
+        }
+        this.startDirectCall(partner.id, partner.display_name || partner.username, partner.avatar_url, partner.avatar_color, true);
+      });
+    }
+
+    // Header Join Voice Button (Group Channel)
     const btnJoinVoice = document.getElementById('btn-header-join-voice');
     if (btnJoinVoice) {
       btnJoinVoice.addEventListener('click', () => {
@@ -251,69 +303,104 @@ const CallManager = {
         if (this.activeCall && this.activeCall.type === 'group' && this.activeCall.channelId === App.currentRoom.id) {
           this.leaveGroupVoice();
         } else {
-          this.joinGroupVoice(App.currentRoom.id, App.currentRoom.name);
+          this.joinGroupVoice(App.currentRoom.id, App.currentRoom.name, false);
+        }
+      });
+    }
+
+    // Header Join Video Button (Group Channel)
+    const btnJoinVideo = document.getElementById('btn-header-join-video');
+    if (btnJoinVideo) {
+      btnJoinVideo.addEventListener('click', () => {
+        if (!App.currentRoom || App.currentRoom.type !== 'channel') return;
+        if (this.activeCall && this.activeCall.type === 'group' && this.activeCall.channelId === App.currentRoom.id) {
+          this.openVideoStage();
+        } else {
+          this.joinGroupVoice(App.currentRoom.id, App.currentRoom.name, true);
         }
       });
     }
 
     // Incoming Call Modal Actions
     const btnAccept = document.getElementById('btn-accept-incoming-call');
+    const btnAcceptAudio = document.getElementById('btn-accept-incoming-call-audio');
     const btnDecline = document.getElementById('btn-decline-incoming-call');
 
     if (btnAccept) {
-      btnAccept.addEventListener('click', () => this.acceptCall());
+      btnAccept.addEventListener('click', () => {
+        const isVid = this.activeCall && this.activeCall.callType === 'video';
+        this.acceptCall(isVid);
+      });
+    }
+    if (btnAcceptAudio) {
+      btnAcceptAudio.addEventListener('click', () => {
+        this.acceptCall(false);
+      });
     }
     if (btnDecline) {
       btnDecline.addEventListener('click', () => this.declineCall());
     }
 
-    // Active Call Floating Bar Controls
-    const btnMute = document.getElementById('btn-call-mute');
-    const btnDeafen = document.getElementById('btn-call-deafen');
-    const btnEnd = document.getElementById('btn-call-end');
+    // Floating Bar Actions
+    const btnBarMute = document.getElementById('btn-call-mute');
+    const btnBarVideo = document.getElementById('btn-call-video-toggle');
+    const btnBarExpand = document.getElementById('btn-call-expand-stage');
+    const btnBarDeafen = document.getElementById('btn-call-deafen');
+    const btnBarEnd = document.getElementById('btn-call-end');
+    const barInfoClick = document.getElementById('active-call-info-click');
 
-    if (btnMute) {
-      btnMute.addEventListener('click', () => this.toggleMute());
-    }
-    if (btnDeafen) {
-      btnDeafen.addEventListener('click', () => this.toggleDeafen());
-    }
-    if (btnEnd) {
-      btnEnd.addEventListener('click', () => this.endCall());
-    }
+    if (btnBarMute) btnBarMute.addEventListener('click', () => this.toggleMute());
+    if (btnBarVideo) btnBarVideo.addEventListener('click', () => this.toggleCamera());
+    if (btnBarExpand) btnBarExpand.addEventListener('click', () => this.openVideoStage());
+    if (barInfoClick) barInfoClick.addEventListener('click', () => this.openVideoStage());
+    if (btnBarDeafen) btnBarDeafen.addEventListener('click', () => this.toggleDeafen());
+    if (btnBarEnd) btnBarEnd.addEventListener('click', () => this.endCall());
+
+    // Video Stage Modal Actions
+    const btnStageMute = document.getElementById('btn-stage-mute');
+    const btnStageVideo = document.getElementById('btn-stage-video');
+    const btnStageScreen = document.getElementById('btn-stage-screenshare');
+    const btnStageFlip = document.getElementById('btn-stage-flip');
+    const btnStageDeafen = document.getElementById('btn-stage-deafen');
+    const btnStageMin = document.getElementById('btn-video-stage-minimize');
+    const btnStagePip = document.getElementById('btn-video-stage-pip');
+    const btnStageFull = document.getElementById('btn-video-stage-fullscreen');
+    const btnStageEnd = document.getElementById('btn-stage-end');
+    const btnStageChat = document.getElementById('btn-stage-chat-toggle');
+
+    if (btnStageMute) btnStageMute.addEventListener('click', () => this.toggleMute());
+    if (btnStageVideo) btnStageVideo.addEventListener('click', () => this.toggleCamera());
+    if (btnStageScreen) btnStageScreen.addEventListener('click', () => this.toggleScreenShare());
+    if (btnStageFlip) btnStageFlip.addEventListener('click', () => this.flipCamera());
+    if (btnStageDeafen) btnStageDeafen.addEventListener('click', () => this.toggleDeafen());
+    if (btnStageMin) btnStageMin.addEventListener('click', () => this.closeVideoStage());
+    if (btnStagePip) btnStagePip.addEventListener('click', () => this.togglePipMode());
+    if (btnStageFull) btnStageFull.addEventListener('click', () => this.toggleFullscreen());
+    if (btnStageEnd) btnStageEnd.addEventListener('click', () => this.endCall());
+    if (btnStageChat) btnStageChat.addEventListener('click', () => this.closeVideoStage());
   },
 
   // ================= 1-on-1 Direct Calls =================
 
-  async startDirectCall(partnerId, partnerName, partnerAvatar, partnerColor) {
+  async startDirectCall(partnerId, partnerName, partnerAvatar, partnerColor, isVideo = false) {
     if (this.activeCall) {
       App.showToast('You are already in an active call');
       return;
     }
 
     try {
-      this.localStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          channelCount: 1
-        },
-        video: false
-      });
+      await this.acquireLocalMedia(isVideo);
     } catch (err) {
-      console.error('Microphone permission error:', err);
-      App.showToast('Microphone access is required for voice calls');
+      console.error('Media acquisition error:', err);
+      App.showToast(isVideo ? 'Camera or Microphone access required' : 'Microphone access is required');
       return;
     }
 
-    App.socket.emit('voice_call_initiate', { recipientId: partnerId, callType: 'audio' }, async (res) => {
+    const callType = isVideo ? 'video' : 'audio';
+    App.socket.emit('voice_call_initiate', { recipientId: partnerId, callType }, async (res) => {
       if (res && res.error) {
         App.showToast(res.error);
-        if (this.localStream) {
-          this.localStream.getTracks().forEach(t => t.stop());
-          this.localStream = null;
-        }
+        this.stopLocalMedia();
         return;
       }
 
@@ -326,6 +413,7 @@ const CallManager = {
         partnerAvatar,
         partnerColor: partnerColor || '#6366f1',
         isCaller: true,
+        callType,
         startTime: null
       };
 
@@ -337,21 +425,23 @@ const CallManager = {
         color: partnerColor
       });
 
+      if (isVideo) {
+        this.openVideoStage();
+      }
+
       this.playOutgoingRinging();
       this.setupSpeakingDetector();
-
-      // Pre-create PeerConnection and attach local audio tracks
       this.createDirectPeerConnection(partnerId, callId);
     });
   },
 
   handleIncomingCall({ callId, caller, callType }) {
     if (this.activeCall) {
-      // Busy: decline automatically
       App.socket.emit('voice_call_decline', { callerId: caller.id, callId, reason: 'User is busy in another call' });
       return;
     }
 
+    const isVideo = callType === 'video';
     this.activeCall = {
       type: 'direct',
       callId,
@@ -359,6 +449,7 @@ const CallManager = {
       partnerName: caller.display_name || caller.username,
       partnerAvatar: caller.avatar_url,
       partnerColor: caller.avatar_color || '#6366f1',
+      callType: callType || 'audio',
       isCaller: false
     };
 
@@ -366,6 +457,8 @@ const CallManager = {
     const nameEl = document.getElementById('incoming-caller-name');
     const handleEl = document.getElementById('incoming-caller-handle');
     const avatarEl = document.getElementById('incoming-caller-avatar');
+    const typeText = document.getElementById('incoming-call-type-text');
+    const btnAudio = document.getElementById('btn-accept-incoming-call-audio');
 
     if (nameEl) nameEl.textContent = caller.display_name || caller.username;
     if (handleEl) handleEl.textContent = `@${caller.username}`;
@@ -374,33 +467,37 @@ const CallManager = {
       avatarEl.style.backgroundColor = caller.avatar_color || '#6366f1';
     }
 
+    if (typeText) {
+      typeText.textContent = isVideo ? '📹 Incoming Video Call...' : '📞 Incoming Voice Call...';
+    }
+
+    if (btnAudio) {
+      btnAudio.style.display = isVideo ? 'inline-flex' : 'none';
+    }
+
     if (modal) modal.classList.add('active');
     this.playIncomingRingtone();
   },
 
-  async acceptCall() {
+  async acceptCall(withVideo = null) {
     this.stopRingtone();
     const modal = document.getElementById('incoming-call-modal');
     if (modal) modal.classList.remove('active');
 
     if (!this.activeCall) return;
 
+    const requestVideo = withVideo !== null ? withVideo : (this.activeCall.callType === 'video');
+
     try {
-      this.localStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          channelCount: 1
-        },
-        video: false
-      });
+      await this.acquireLocalMedia(requestVideo);
     } catch (err) {
-      console.error('Microphone error on accept:', err);
-      App.showToast('Microphone access is required to answer');
+      console.error('Media permission error on accept:', err);
+      App.showToast('Microphone & camera permissions required to answer');
       this.declineCall();
       return;
     }
+
+    this.activeCall.callType = requestVideo ? 'video' : 'audio';
 
     this.showActiveCallBar({
       title: this.activeCall.partnerName,
@@ -409,14 +506,16 @@ const CallManager = {
       color: this.activeCall.partnerColor
     });
 
+    if (requestVideo) {
+      this.openVideoStage();
+    }
+
     this.playConnectedChime();
     this.startCallTimer();
     this.setupSpeakingDetector();
 
-    // Create RTCPeerConnection for incoming direct call
     this.createDirectPeerConnection(this.activeCall.partnerId, this.activeCall.callId);
 
-    // Notify caller that call was accepted
     App.socket.emit('voice_call_accept', {
       callerId: this.activeCall.partnerId,
       callId: this.activeCall.callId
@@ -433,20 +532,27 @@ const CallManager = {
     const pc = new RTCPeerConnection(this.rtcConfig);
     this.peerConnections.set('direct', pc);
 
-    // Attach local audio track
+    // Attach all local tracks (audio + video)
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => {
         pc.addTrack(track, this.localStream);
       });
     }
 
-    // Remote audio track received
+    // Remote track handler
     pc.ontrack = (event) => {
       const stream = event.streams && event.streams[0] ? event.streams[0] : new MediaStream([event.track]);
-      this.attachRemoteAudio('direct', stream);
+      this.remoteStreams.set('direct', stream);
+
+      if (event.track.kind === 'audio') {
+        this.attachRemoteAudio('direct', stream);
+      }
+      if (event.track.kind === 'video') {
+        this.attachRemoteVideo('direct', stream);
+      }
     };
 
-    // Candidate gathering
+    // ICE Candidates
     pc.onicecandidate = (event) => {
       if (event.candidate && this.activeCall) {
         App.socket.emit('voice_call_signal', {
@@ -458,7 +564,6 @@ const CallManager = {
     };
 
     pc.onconnectionstatechange = () => {
-      console.log('Direct WebRTC connection state:', pc.connectionState);
       if (pc.connectionState === 'connected') {
         this.updateCallStatus('Connected');
       } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
@@ -502,37 +607,32 @@ const CallManager = {
     this.cleanupCall();
   },
 
-  // ================= Group Voice Channels =================
+  // ================= Group Voice & Video Channels =================
 
-  async joinGroupVoice(channelId, channelName) {
+  async joinGroupVoice(channelId, channelName, isVideo = false) {
     if (this.activeCall) {
-      if (this.activeCall.type === 'group' && this.activeCall.channelId === channelId) return;
+      if (this.activeCall.type === 'group' && this.activeCall.channelId === channelId) {
+        if (isVideo && !this.isCameraOn) {
+          this.openVideoStage();
+          this.toggleCamera();
+        }
+        return;
+      }
       this.endCall();
     }
 
     try {
-      this.localStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          channelCount: 1
-        },
-        video: false
-      });
+      await this.acquireLocalMedia(isVideo);
     } catch (err) {
-      console.error('Microphone error joining group voice:', err);
-      App.showToast('Microphone access is required for voice channels');
+      console.error('Microphone/Camera error joining group call:', err);
+      App.showToast('Microphone access is required for group rooms');
       return;
     }
 
     App.socket.emit('join_group_voice', { channelId }, async (res) => {
       if (res && res.error) {
         App.showToast(res.error);
-        if (this.localStream) {
-          this.localStream.getTracks().forEach(t => t.stop());
-          this.localStream = null;
-        }
+        this.stopLocalMedia();
         return;
       }
 
@@ -540,11 +640,12 @@ const CallManager = {
         type: 'group',
         channelId,
         channelName,
+        callType: isVideo ? 'video' : 'audio',
         startTime: Date.now()
       };
 
       this.showActiveCallBar({
-        title: `#${channelName} Voice Room`,
+        title: `#${channelName} Room`,
         status: 'Connected',
         name: channelName,
         isGroup: true
@@ -555,7 +656,11 @@ const CallManager = {
       this.setupSpeakingDetector();
       this.updateGroupVoiceButtonUI(true);
 
-      // Connect mesh WebRTC to existing participants (we are initiator)
+      if (isVideo) {
+        this.openVideoStage();
+      }
+
+      // Connect mesh WebRTC to existing participants
       const participants = res.participants || [];
       for (const p of participants) {
         this.addParticipantToGroupCallUI(p.socketId, p.user);
@@ -590,7 +695,14 @@ const CallManager = {
 
     pc.ontrack = (event) => {
       const stream = event.streams && event.streams[0] ? event.streams[0] : new MediaStream([event.track]);
-      this.attachRemoteAudio(targetSocketId, stream);
+      this.remoteStreams.set(targetSocketId, stream);
+
+      if (event.track.kind === 'audio') {
+        this.attachRemoteAudio(targetSocketId, stream);
+      }
+      if (event.track.kind === 'video') {
+        this.attachGroupParticipantVideo(targetSocketId, stream, targetUser);
+      }
     };
 
     pc.onicecandidate = (event) => {
@@ -607,7 +719,7 @@ const CallManager = {
       try {
         const offer = await pc.createOffer({
           offerToReceiveAudio: true,
-          offerToReceiveVideo: false
+          offerToReceiveVideo: true
         });
         await pc.setLocalDescription(offer);
         App.socket.emit('group_voice_signal', {
@@ -623,28 +735,308 @@ const CallManager = {
     return pc;
   },
 
-  // ================= Candidate Queuing Helper =================
+  // ================= Media Acquisition & Controls =================
 
-  queuePendingCandidate(key, candidate) {
-    if (!this.pendingCandidates.has(key)) {
-      this.pendingCandidates.set(key, []);
+  async acquireLocalMedia(enableVideo = false) {
+    this.stopLocalMedia();
+
+    // 1. Audio stream
+    this.localAudioStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: 1
+      },
+      video: false
+    });
+
+    this.localStream = new MediaStream();
+    this.localAudioStream.getAudioTracks().forEach(t => this.localStream.addTrack(t));
+
+    // 2. Video stream if requested
+    if (enableVideo) {
+      try {
+        this.localVideoStream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'user'
+          }
+        });
+        this.localVideoStream.getVideoTracks().forEach(t => this.localStream.addTrack(t));
+        this.isCameraOn = true;
+      } catch (err) {
+        console.warn('Camera acquisition failed, continuing audio-only:', err);
+        this.isCameraOn = false;
+      }
+    } else {
+      this.isCameraOn = false;
     }
-    this.pendingCandidates.get(key).push(candidate);
+
+    this.updateControlsUI();
+    this.updateLocalVideoPreview();
   },
 
-  async flushPendingCandidates(key, pc) {
-    const queue = this.pendingCandidates.get(key);
-    if (!queue || queue.length === 0) return;
+  stopLocalMedia() {
+    if (this.localAudioStream) {
+      this.localAudioStream.getTracks().forEach(t => t.stop());
+      this.localAudioStream = null;
+    }
+    if (this.localVideoStream) {
+      this.localVideoStream.getTracks().forEach(t => t.stop());
+      this.localVideoStream = null;
+    }
+    if (this.screenStream) {
+      this.screenStream.getTracks().forEach(t => t.stop());
+      this.screenStream = null;
+    }
+    if (this.localStream) {
+      this.localStream.getTracks().forEach(t => t.stop());
+      this.localStream = null;
+    }
+    this.isCameraOn = false;
+    this.isScreenSharing = false;
+  },
 
-    while (queue.length > 0) {
-      const cand = queue.shift();
+  async toggleCamera() {
+    if (this.isScreenSharing) {
+      await this.stopScreenShare();
+    }
+
+    if (this.isCameraOn) {
+      // Turn camera OFF
+      if (this.localVideoStream) {
+        this.localVideoStream.getTracks().forEach(t => t.stop());
+        this.localVideoStream = null;
+      }
+      if (this.localStream) {
+        this.localStream.getVideoTracks().forEach(t => {
+          t.stop();
+          this.localStream.removeTrack(t);
+        });
+      }
+
+      // Replace video tracks on all peer connections with null
+      this.peerConnections.forEach(pc => {
+        const senders = pc.getSenders();
+        const vidSender = senders.find(s => s.track && s.track.kind === 'video');
+        if (vidSender) {
+          vidSender.replaceTrack(null).catch(() => {});
+        }
+      });
+
+      this.isCameraOn = false;
+      App.showToast('Camera turned off');
+      this.broadcastMediaState();
+      this.updateControlsUI();
+      this.updateLocalVideoPreview();
+    } else {
+      // Turn camera ON
       try {
-        await pc.addIceCandidate(new RTCIceCandidate(cand));
-      } catch (e) {
-        console.warn('Error flushing queued candidate:', e);
+        const videoConstraints = {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: 'user'
+        };
+
+        if (this.availableVideoDevices.length > 0) {
+          const device = this.availableVideoDevices[this.currentVideoDeviceIndex];
+          if (device && device.deviceId) {
+            videoConstraints.deviceId = { exact: device.deviceId };
+          }
+        }
+
+        this.localVideoStream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: videoConstraints
+        });
+
+        const newVideoTrack = this.localVideoStream.getVideoTracks()[0];
+        if (this.localStream) {
+          this.localStream.getVideoTracks().forEach(t => {
+            t.stop();
+            this.localStream.removeTrack(t);
+          });
+          this.localStream.addTrack(newVideoTrack);
+        }
+
+        // Replace or add track on all active peer connections
+        this.peerConnections.forEach(async (pc) => {
+          const senders = pc.getSenders();
+          const vidSender = senders.find(s => s.track && s.track.kind === 'video');
+          if (vidSender) {
+            await vidSender.replaceTrack(newVideoTrack);
+          } else {
+            pc.addTrack(newVideoTrack, this.localStream);
+            this.renegotiatePeerConnection(pc);
+          }
+        });
+
+        this.isCameraOn = true;
+        App.showToast('Camera turned on 📹');
+        this.broadcastMediaState();
+        this.updateControlsUI();
+        this.updateLocalVideoPreview();
+
+        if (!this.isStageOpen) {
+          this.openVideoStage();
+        }
+      } catch (err) {
+        console.error('Camera permission failed:', err);
+        App.showToast('Could not access camera: ' + (err.message || 'Permission denied'));
       }
     }
-    this.pendingCandidates.delete(key);
+  },
+
+  async toggleScreenShare() {
+    if (this.isScreenSharing) {
+      await this.stopScreenShare();
+    } else {
+      try {
+        this.screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: { cursor: 'always' },
+          audio: true
+        });
+
+        const screenTrack = this.screenStream.getVideoTracks()[0];
+
+        // Handle user stopping screen share via native browser floating UI
+        screenTrack.onended = () => {
+          this.stopScreenShare();
+        };
+
+        // If local video stream was on, pause it
+        if (this.localVideoStream) {
+          this.localVideoStream.getVideoTracks().forEach(t => t.enabled = false);
+        }
+
+        if (this.localStream) {
+          this.localStream.getVideoTracks().forEach(t => this.localStream.removeTrack(t));
+          this.localStream.addTrack(screenTrack);
+        }
+
+        this.peerConnections.forEach(async (pc) => {
+          const senders = pc.getSenders();
+          const vidSender = senders.find(s => s.track && s.track.kind === 'video');
+          if (vidSender) {
+            await vidSender.replaceTrack(screenTrack);
+          } else {
+            pc.addTrack(screenTrack, this.localStream);
+            this.renegotiatePeerConnection(pc);
+          }
+        });
+
+        this.isScreenSharing = true;
+        App.showToast('Screen sharing started 🖥️');
+        this.broadcastMediaState();
+        this.updateControlsUI();
+        this.updateLocalVideoPreview();
+
+        if (!this.isStageOpen) {
+          this.openVideoStage();
+        }
+      } catch (err) {
+        console.warn('Screen share canceled or error:', err);
+      }
+    }
+  },
+
+  async stopScreenShare() {
+    if (this.screenStream) {
+      this.screenStream.getTracks().forEach(t => t.stop());
+      this.screenStream = null;
+    }
+
+    this.isScreenSharing = false;
+
+    // Restore camera track if camera was previously on
+    if (this.isCameraOn && this.localVideoStream) {
+      const camTrack = this.localVideoStream.getVideoTracks()[0];
+      if (camTrack) {
+        camTrack.enabled = true;
+        if (this.localStream) {
+          this.localStream.getVideoTracks().forEach(t => this.localStream.removeTrack(t));
+          this.localStream.addTrack(camTrack);
+        }
+        this.peerConnections.forEach(pc => {
+          const vidSender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+          if (vidSender) vidSender.replaceTrack(camTrack).catch(() => {});
+        });
+      }
+    } else {
+      this.peerConnections.forEach(pc => {
+        const vidSender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+        if (vidSender) vidSender.replaceTrack(null).catch(() => {});
+      });
+    }
+
+    App.showToast('Screen sharing ended');
+    this.broadcastMediaState();
+    this.updateControlsUI();
+    this.updateLocalVideoPreview();
+  },
+
+  async flipCamera() {
+    if (this.availableVideoDevices.length <= 1 || !this.isCameraOn) return;
+    this.currentVideoDeviceIndex = (this.currentVideoDeviceIndex + 1) % this.availableVideoDevices.length;
+    await this.toggleCamera(); // Turn off
+    await this.toggleCamera(); // Turn on with next device
+    App.showToast('Switched camera');
+  },
+
+  async renegotiatePeerConnection(pc) {
+    if (!this.activeCall) return;
+    try {
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: true
+      });
+      await pc.setLocalDescription(offer);
+
+      if (this.activeCall.type === 'direct') {
+        App.socket.emit('voice_call_signal', {
+          targetUserId: this.activeCall.partnerId,
+          signal: offer,
+          callId: this.activeCall.callId
+        });
+      } else if (this.activeCall.type === 'group') {
+        // Group mesh renegotiation
+        this.peerConnections.forEach((val, socketId) => {
+          if (val === pc) {
+            App.socket.emit('group_voice_signal', {
+              targetSocketId: socketId,
+              signal: offer,
+              channelId: this.activeCall.channelId
+            });
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Renegotiation error:', e);
+    }
+  },
+
+  broadcastMediaState() {
+    if (!this.activeCall) return;
+    const payload = {
+      isVideoOn: this.isCameraOn || this.isScreenSharing,
+      isScreenSharing: this.isScreenSharing,
+      isMuted: this.isMuted
+    };
+
+    if (this.activeCall.type === 'direct') {
+      App.socket.emit('call_media_state', {
+        targetUserId: this.activeCall.partnerId,
+        ...payload
+      });
+    } else if (this.activeCall.type === 'group') {
+      App.socket.emit('call_media_state', {
+        channelId: this.activeCall.channelId,
+        ...payload
+      });
+    }
   },
 
   // ================= Audio Output & Playback =================
@@ -669,25 +1061,206 @@ const CallManager = {
     audio.srcObject = stream;
     audio.muted = this.isDeafened;
 
-    // Ensure playback starts even with strict browser policies
     const playAudio = () => {
-      const promise = audio.play();
-      if (promise !== undefined) {
-        promise.catch((err) => {
-          console.warn(`Autoplay restriction for ${id}:`, err);
-          const clickUnlock = () => {
-            audio.play().catch(() => {});
-          };
-          document.addEventListener('click', clickUnlock, { once: true });
-          document.addEventListener('touchstart', clickUnlock, { once: true });
+      const p = audio.play();
+      if (p !== undefined) {
+        p.catch((err) => {
+          console.warn(`Autoplay unlock needed for ${id}:`, err);
         });
       }
     };
-
     playAudio();
   },
 
-  // ================= Controls: Mute, Deafen, Timer =================
+  attachRemoteVideo(id, stream) {
+    const videoEl = document.getElementById('remote-video-feed');
+    const fallbackEl = document.getElementById('remote-video-fallback');
+
+    if (videoEl) {
+      videoEl.srcObject = stream;
+      videoEl.style.display = 'block';
+      videoEl.play().catch(() => {});
+      if (fallbackEl) fallbackEl.style.display = 'none';
+    }
+
+    this.openVideoStage();
+  },
+
+  attachGroupParticipantVideo(socketId, stream, user) {
+    const grid = document.getElementById('video-stage-group-grid');
+    if (!grid) return;
+
+    let tile = document.getElementById(`group-tile-${socketId}`);
+    if (!tile) {
+      tile = document.createElement('div');
+      tile.className = 'group-video-tile';
+      tile.id = `group-tile-${socketId}`;
+      tile.dataset.callUserId = user?.id || socketId;
+      tile.innerHTML = `
+        <video autoplay playsinline class="group-video-element" id="vid-group-${socketId}"></video>
+        <div class="video-fallback-avatar group-fallback" id="fallback-group-${socketId}">
+          <div class="fallback-avatar-circle" style="background-color:${user?.avatar_color || '#6366f1'};">${(user?.display_name || user?.username || 'U').charAt(0).toUpperCase()}</div>
+        </div>
+        <div class="video-feed-info-pill">
+          <span>${App.escapeHtml(user?.display_name || user?.username || 'Member')}</span>
+          <span id="mic-status-${socketId}">🎤</span>
+        </div>
+      `;
+      grid.appendChild(tile);
+    }
+
+    const vid = tile.querySelector('video');
+    const fallback = tile.querySelector('.video-fallback-avatar');
+    if (vid) {
+      vid.srcObject = stream;
+      vid.style.display = 'block';
+      vid.play().catch(() => {});
+      if (fallback) fallback.style.display = 'none';
+    }
+  },
+
+  updateRemoteMediaUI(key, { isVideoOn, isScreenSharing, isMuted, userId }) {
+    if (this.activeCall?.type === 'direct') {
+      const vidEl = document.getElementById('remote-video-feed');
+      const fallbackEl = document.getElementById('remote-video-fallback');
+      const micStatus = document.getElementById('remote-feed-mic-status');
+
+      if (micStatus) {
+        micStatus.textContent = isMuted ? '🔇' : '🎤';
+        micStatus.style.color = isMuted ? '#ef4444' : '#34d399';
+      }
+
+      if (vidEl && fallbackEl) {
+        if (isVideoOn) {
+          vidEl.style.display = 'block';
+          fallbackEl.style.display = 'none';
+        } else {
+          vidEl.style.display = 'none';
+          fallbackEl.style.display = 'flex';
+        }
+      }
+    } else {
+      // Group tile
+      const tile = document.getElementById(`group-tile-${key}`) || document.querySelector(`[data-call-user-id="${userId}"]`);
+      if (tile) {
+        const vid = tile.querySelector('video');
+        const fallback = tile.querySelector('.video-fallback-avatar');
+        const mic = tile.querySelector('[id^="mic-status-"]');
+        if (mic) mic.textContent = isMuted ? '🔇' : '🎤';
+        if (vid && fallback) {
+          vid.style.display = isVideoOn ? 'block' : 'none';
+          fallback.style.display = isVideoOn ? 'none' : 'flex';
+        }
+      }
+    }
+  },
+
+  updateLocalVideoPreview() {
+    const vidEl = document.getElementById('local-video-feed');
+    const fallbackEl = document.getElementById('local-video-fallback');
+    const micStatus = document.getElementById('local-feed-mic-status');
+
+    if (micStatus) {
+      micStatus.textContent = this.isMuted ? '🔇' : '🎤';
+      micStatus.style.color = this.isMuted ? '#ef4444' : '#34d399';
+    }
+
+    const hasVideo = this.isCameraOn || this.isScreenSharing;
+    if (vidEl) {
+      if (hasVideo && this.localStream) {
+        vidEl.srcObject = this.localStream;
+        vidEl.style.display = 'block';
+        vidEl.play().catch(() => {});
+        if (fallbackEl) fallbackEl.style.display = 'none';
+      } else {
+        vidEl.srcObject = null;
+        vidEl.style.display = 'none';
+        if (fallbackEl) fallbackEl.style.display = 'flex';
+      }
+    }
+  },
+
+  // ================= Stage Modals & Controls =================
+
+  openVideoStage() {
+    const modal = document.getElementById('video-call-modal');
+    const titleEl = document.getElementById('video-stage-title');
+    const typeBadge = document.getElementById('video-stage-call-type');
+    const directBody = document.getElementById('video-stage-direct-body');
+    const groupGrid = document.getElementById('video-stage-group-grid');
+    const partnerName = document.getElementById('remote-feed-user-name');
+    const fallbackName = document.getElementById('remote-fallback-name');
+    const fallbackCircle = document.getElementById('remote-fallback-avatar-circle');
+
+    if (this.activeCall) {
+      if (titleEl) {
+        titleEl.textContent = this.activeCall.type === 'direct' 
+          ? `Call with ${this.activeCall.partnerName}` 
+          : `#${this.activeCall.channelName} Video Room`;
+      }
+      if (typeBadge) {
+        typeBadge.textContent = this.isCameraOn || this.isScreenSharing ? 'LIVE VIDEO' : 'AUDIO / VIDEO CALL';
+      }
+
+      if (this.activeCall.type === 'direct') {
+        if (directBody) directBody.style.display = 'flex';
+        if (groupGrid) groupGrid.style.display = 'none';
+
+        if (partnerName) partnerName.textContent = this.activeCall.partnerName;
+        if (fallbackName) fallbackName.textContent = this.activeCall.partnerName;
+        if (fallbackCircle) {
+          fallbackCircle.textContent = this.activeCall.partnerName.charAt(0).toUpperCase();
+          fallbackCircle.style.backgroundColor = this.activeCall.partnerColor || '#6366f1';
+        }
+      } else {
+        if (directBody) directBody.style.display = 'none';
+        if (groupGrid) groupGrid.style.display = 'grid';
+      }
+    }
+
+    if (modal) {
+      modal.classList.add('active');
+      this.isStageOpen = true;
+    }
+
+    this.updateControlsUI();
+    this.updateLocalVideoPreview();
+  },
+
+  closeVideoStage() {
+    const modal = document.getElementById('video-call-modal');
+    if (modal) {
+      modal.classList.remove('active');
+      this.isStageOpen = false;
+    }
+  },
+
+  toggleFullscreen() {
+    const stage = document.getElementById('video-stage-container');
+    if (!stage) return;
+
+    if (!document.fullscreenElement) {
+      stage.requestFullscreen().catch(() => {});
+      this.isFullscreen = true;
+    } else {
+      document.exitFullscreen().catch(() => {});
+      this.isFullscreen = false;
+    }
+  },
+
+  async togglePipMode() {
+    const vid = document.getElementById('remote-video-feed');
+    if (!vid) return;
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else if (document.pictureInPictureEnabled) {
+        await vid.requestPictureInPicture();
+      }
+    } catch (e) {
+      console.warn('PiP error:', e);
+    }
+  },
 
   toggleMute() {
     this.isMuted = !this.isMuted;
@@ -697,12 +1270,9 @@ const CallManager = {
       });
     }
 
-    const btnMute = document.getElementById('btn-call-mute');
-    if (btnMute) {
-      btnMute.classList.toggle('active-control-danger', this.isMuted);
-      btnMute.innerHTML = this.isMuted ? '<span>🔇</span>' : '<span>🎤</span>';
-    }
-    App.showToast(this.isMuted ? 'Microphone Muted' : 'Microphone Unmuted');
+    this.broadcastMediaState();
+    this.updateControlsUI();
+    App.showToast(this.isMuted ? 'Microphone Muted 🔇' : 'Microphone Unmuted 🎤');
   },
 
   toggleDeafen() {
@@ -711,17 +1281,63 @@ const CallManager = {
       audio.muted = this.isDeafened;
     });
 
-    const btnDeafen = document.getElementById('btn-call-deafen');
+    const remoteVid = document.getElementById('remote-video-feed');
+    if (remoteVid) remoteVid.muted = this.isDeafened;
+
+    this.updateControlsUI();
+    App.showToast(this.isDeafened ? 'Audio Deafen ON 🔇' : 'Audio Deafen OFF 🔊');
+  },
+
+  updateControlsUI() {
+    // Stage Controls
+    const btnMute = document.getElementById('btn-stage-mute');
+    const muteIcon = document.getElementById('stage-mute-icon');
+    const btnVideo = document.getElementById('btn-stage-video');
+    const videoIcon = document.getElementById('stage-video-icon');
+    const btnScreen = document.getElementById('btn-stage-screenshare');
+    const btnDeafen = document.getElementById('btn-stage-deafen');
+
+    if (btnMute && muteIcon) {
+      btnMute.classList.toggle('active-control-danger', this.isMuted);
+      muteIcon.textContent = this.isMuted ? '🔇' : '🎤';
+    }
+
+    if (btnVideo && videoIcon) {
+      btnVideo.classList.toggle('active-control-success', this.isCameraOn);
+      btnVideo.classList.toggle('active-control-danger', !this.isCameraOn);
+      videoIcon.textContent = this.isCameraOn ? '📹' : '📷';
+    }
+
+    if (btnScreen) {
+      btnScreen.classList.toggle('active-control-accent', this.isScreenSharing);
+    }
+
     if (btnDeafen) {
       btnDeafen.classList.toggle('active-control-danger', this.isDeafened);
-      btnDeafen.innerHTML = this.isDeafened ? '<span>🔇</span>' : '<span>🎧</span>';
     }
-    App.showToast(this.isDeafened ? 'Audio Deafen ON' : 'Audio Deafen OFF');
+
+    // Floating Bar Controls
+    const barMute = document.getElementById('btn-call-mute');
+    const barVideo = document.getElementById('btn-call-video-toggle');
+    const barDeafen = document.getElementById('btn-call-deafen');
+
+    if (barMute) {
+      barMute.classList.toggle('active-control-danger', this.isMuted);
+      barMute.innerHTML = this.isMuted ? '<span>🔇</span>' : '<span>🎤</span>';
+    }
+    if (barVideo) {
+      barVideo.classList.toggle('active-control-success', this.isCameraOn);
+      barVideo.innerHTML = this.isCameraOn ? '<span>📹</span>' : '<span>📷</span>';
+    }
+    if (barDeafen) {
+      barDeafen.classList.toggle('active-control-danger', this.isDeafened);
+    }
   },
 
   startCallTimer() {
     clearInterval(this.activeCall?.timerInterval);
-    const timerEl = document.getElementById('call-duration-timer');
+    const timerBar = document.getElementById('call-duration-timer');
+    const timerStage = document.getElementById('video-stage-timer');
     if (!this.activeCall) return;
 
     this.activeCall.startTime = Date.now();
@@ -730,9 +1346,9 @@ const CallManager = {
       const elapsed = Math.floor((Date.now() - this.activeCall.startTime) / 1000);
       const mins = Math.floor(elapsed / 60);
       const secs = elapsed % 60;
-      if (timerEl) {
-        timerEl.textContent = `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
-      }
+      const formatted = `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+      if (timerBar) timerBar.textContent = formatted;
+      if (timerStage) timerStage.textContent = formatted;
     }, 1000);
   },
 
@@ -848,15 +1464,15 @@ const CallManager = {
     const container = document.getElementById('active-call-participants');
     if (!container) return;
 
-    let existing = container.querySelector(`[data-socket-id="${socketId}"]`);
-    if (!existing) {
-      const dot = document.createElement('div');
+    let dot = container.querySelector(`[data-socket-id="${socketId}"]`);
+    if (!dot) {
+      dot = document.createElement('div');
       dot.className = 'call-participant-avatar';
       dot.dataset.socketId = socketId;
-      dot.dataset.callUserId = user.id;
-      dot.style.backgroundColor = user.avatar_color || '#6366f1';
-      dot.textContent = (user.display_name || user.username).charAt(0).toUpperCase();
-      dot.title = user.display_name || user.username;
+      dot.dataset.callUserId = user?.id;
+      dot.style.backgroundColor = user?.avatar_color || '#6366f1';
+      dot.textContent = (user?.display_name || user?.username || 'U').charAt(0).toUpperCase();
+      dot.title = user?.display_name || user?.username;
       container.appendChild(dot);
     }
   },
@@ -867,161 +1483,59 @@ const CallManager = {
       const dot = container.querySelector(`[data-socket-id="${socketId}"]`);
       if (dot) dot.remove();
     }
+    const tile = document.getElementById(`group-tile-${socketId}`);
+    if (tile) tile.remove();
   },
 
   updateGroupVoiceButtonUI(isInVoice) {
-    const btnJoinVoice = document.getElementById('btn-header-join-voice');
-    if (btnJoinVoice) {
-      btnJoinVoice.classList.toggle('active-in-voice', isInVoice);
-      btnJoinVoice.innerHTML = isInVoice
-        ? '<span>🔴 Leave Voice</span>'
-        : '<span>🎙️ Join Voice</span>';
+    const btnVoice = document.getElementById('btn-header-join-voice');
+    const btnVideo = document.getElementById('btn-header-join-video');
+    if (btnVoice) {
+      btnVoice.classList.toggle('active-in-voice', isInVoice);
+      btnVoice.innerHTML = isInVoice ? '<span>🚪 Leave Voice</span>' : '<span>🎙️ Voice</span>';
+    }
+    if (btnVideo) {
+      btnVideo.classList.toggle('active-in-voice', isInVoice);
     }
   },
 
-  cleanupCall() {
-    this.stopRingtone();
-    clearInterval(this.activeCall?.timerInterval);
-    clearInterval(this.speakingInterval);
-
-    // Stop local mic tracks
-    if (this.localStream) {
-      this.localStream.getTracks().forEach(track => track.stop());
-      this.localStream = null;
-    }
-
-    // Close all WebRTC peer connections
-    this.peerConnections.forEach(pc => {
-      try {
-        pc.close();
-      } catch (e) {}
-    });
-    this.peerConnections.clear();
-    this.pendingCandidates.clear();
-
-    // Remove remote audio elements
-    this.audioElements.forEach(audio => {
-      audio.srcObject = null;
-      audio.remove();
-    });
-    this.audioElements.clear();
-
-    // Reset controls UI
-    this.isMuted = false;
-    this.isDeafened = false;
-    this.isSpeaking = false;
-
-    const btnMute = document.getElementById('btn-call-mute');
-    const btnDeafen = document.getElementById('btn-call-deafen');
-    if (btnMute) {
-      btnMute.classList.remove('active-control-danger');
-      btnMute.innerHTML = '<span>🎤</span>';
-    }
-    if (btnDeafen) {
-      btnDeafen.classList.remove('active-control-danger');
-      btnDeafen.innerHTML = '<span>🎧</span>';
-    }
-
-    const timerEl = document.getElementById('call-duration-timer');
-    if (timerEl) timerEl.textContent = '00:00';
-
-    const bar = document.getElementById('active-call-bar');
-    if (bar) bar.classList.remove('active');
-
-    const modal = document.getElementById('incoming-call-modal');
-    if (modal) modal.classList.remove('active');
-
-    this.updateGroupVoiceButtonUI(false);
-    this.activeCall = null;
-  },
-
-  // ================= Built-in Microphone Audio Test / Echo Check =================
-
-  async toggleMicTest() {
-    if (this.isTestingMic) {
-      this.stopMicTest();
-      App.showToast('Microphone test ended');
-    } else {
-      await this.startMicTest();
-    }
-  },
-
-  async startMicTest() {
-    try {
-      this.micTestStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: true
-        }
-      });
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      const testCtx = new AudioCtx();
-      if (testCtx.state === 'suspended') await testCtx.resume();
-
-      const source = testCtx.createMediaStreamSource(this.micTestStream);
-      const gain = testCtx.createGain();
-      gain.gain.value = 0.9;
-      source.connect(gain);
-      gain.connect(testCtx.destination);
-
-      this.micTestAudioNode = { ctx: testCtx, gain, source };
-      this.isTestingMic = true;
-      App.showToast('🔊 Speaking test active: speak to hear your voice through your speakers');
-    } catch (e) {
-      console.error('Mic test error:', e);
-      App.showToast('Could not access microphone for test: ' + e.message);
-    }
-  },
-
-  stopMicTest() {
-    if (this.micTestStream) {
-      this.micTestStream.getTracks().forEach(t => t.stop());
-      this.micTestStream = null;
-    }
-    if (this.micTestAudioNode) {
-      try {
-        this.micTestAudioNode.ctx.close();
-      } catch (e) {}
-      this.micTestAudioNode = null;
-    }
-    this.isTestingMic = false;
-  },
-
-  // ================= Web Audio API Synthesized Chimes & Ringtones =================
+  // ================= Ringtones & Audio Synthesis =================
 
   playOutgoingRinging() {
     this.stopRingtone();
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      this.audioCtx = new AudioCtx();
+      if (!this.audioCtx) this.audioCtx = new AudioCtx();
+      if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
 
-      const ringLoop = () => {
-        if (!this.activeCall || !this.activeCall.isCaller) return;
-        const now = this.audioCtx.currentTime;
+      const playTone = () => {
+        if (!this.activeCall) return;
         const osc1 = this.audioCtx.createOscillator();
         const osc2 = this.audioCtx.createOscillator();
         const gain = this.audioCtx.createGain();
 
-        osc1.frequency.value = 440; // 440Hz + 480Hz US ringing
-        osc2.frequency.value = 480;
-
-        gain.gain.setValueAtTime(0.08, now);
-        gain.gain.setValueAtTime(0.08, now + 1.6);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.8);
+        osc1.frequency.value = 440; // Hz
+        osc2.frequency.value = 480; // Hz
+        gain.gain.value = 0.05;
 
         osc1.connect(gain);
         osc2.connect(gain);
         gain.connect(this.audioCtx.destination);
 
-        osc1.start(now);
-        osc2.start(now);
-        osc1.stop(now + 1.8);
-        osc2.stop(now + 1.8);
+        osc1.start();
+        osc2.start();
 
-        this.ringTimer = setTimeout(ringLoop, 3500);
+        setTimeout(() => {
+          try {
+            gain.gain.exponentialRampToValueAtTime(0.0001, this.audioCtx.currentTime + 0.1);
+            osc1.stop(this.audioCtx.currentTime + 0.1);
+            osc2.stop(this.audioCtx.currentTime + 0.1);
+          } catch (e) {}
+        }, 1500);
       };
-      ringLoop();
+
+      playTone();
+      this.ringTimer = setInterval(playTone, 4000);
     } catch (e) {}
   },
 
@@ -1029,79 +1543,150 @@ const CallManager = {
     this.stopRingtone();
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      this.audioCtx = new AudioCtx();
+      if (!this.audioCtx) this.audioCtx = new AudioCtx();
+      if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
 
-      const ringMelody = () => {
-        const modal = document.getElementById('incoming-call-modal');
-        if (!modal || !modal.classList.contains('active')) return;
+      const playBeep = () => {
+        if (!this.activeCall) return;
+        const osc = this.audioCtx.createOscillator();
+        const gain = this.audioCtx.createGain();
 
-        const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6 melodic ring
-        const now = this.audioCtx.currentTime;
+        osc.frequency.value = 800;
+        osc.type = 'sine';
+        gain.gain.value = 0.08;
 
-        notes.forEach((freq, idx) => {
-          const osc = this.audioCtx.createOscillator();
-          const gain = this.audioCtx.createGain();
-          osc.type = 'sine';
-          osc.frequency.value = freq;
-          const start = now + idx * 0.14;
+        osc.connect(gain);
+        gain.connect(this.audioCtx.destination);
 
-          gain.gain.setValueAtTime(0.12, start);
-          gain.gain.exponentialRampToValueAtTime(0.001, start + 0.3);
+        osc.start();
+        setTimeout(() => {
+          try {
+            osc.frequency.value = 600;
+          } catch (e) {}
+        }, 200);
 
-          osc.connect(gain);
-          gain.connect(this.audioCtx.destination);
-
-          osc.start(start);
-          osc.stop(start + 0.35);
-        });
-
-        this.ringTimer = setTimeout(ringMelody, 2200);
+        setTimeout(() => {
+          try {
+            gain.gain.exponentialRampToValueAtTime(0.0001, this.audioCtx.currentTime + 0.05);
+            osc.stop(this.audioCtx.currentTime + 0.05);
+          } catch (e) {}
+        }, 600);
       };
-      ringMelody();
+
+      playBeep();
+      this.ringTimer = setInterval(playBeep, 2000);
     } catch (e) {}
   },
 
   stopRingtone() {
-    clearTimeout(this.ringTimer);
+    clearInterval(this.ringTimer);
+    this.ringTimer = null;
   },
 
   playConnectedChime() {
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      const ctx = new AudioCtx();
-      const now = ctx.currentTime;
-      [587.33, 880].forEach((freq, idx) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.12, now + idx * 0.1);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.1 + 0.25);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now + idx * 0.1);
-        osc.stop(now + idx * 0.1 + 0.25);
-      });
+      if (!this.audioCtx) this.audioCtx = new AudioCtx();
+      if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
+
+      const osc = this.audioCtx.createOscillator();
+      const gain = this.audioCtx.createGain();
+
+      osc.frequency.value = 523.25; // C5
+      gain.gain.value = 0.08;
+
+      osc.connect(gain);
+      gain.connect(this.audioCtx.destination);
+
+      osc.start();
+      setTimeout(() => { osc.frequency.value = 659.25; }, 100); // E5
+      setTimeout(() => { osc.frequency.value = 783.99; }, 200); // G5
+      setTimeout(() => {
+        gain.gain.exponentialRampToValueAtTime(0.0001, this.audioCtx.currentTime + 0.2);
+        osc.stop(this.audioCtx.currentTime + 0.2);
+      }, 350);
     } catch (e) {}
   },
 
   playEndCallChime() {
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      const ctx = new AudioCtx();
-      const now = ctx.currentTime;
-      [880, 440].forEach((freq, idx) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.12, now + idx * 0.12);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.25);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now + idx * 0.12);
-        osc.stop(now + idx * 0.12 + 0.25);
-      });
+      if (!this.audioCtx) this.audioCtx = new AudioCtx();
+      if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
+
+      const osc = this.audioCtx.createOscillator();
+      const gain = this.audioCtx.createGain();
+
+      osc.frequency.value = 600;
+      gain.gain.value = 0.08;
+
+      osc.connect(gain);
+      gain.connect(this.audioCtx.destination);
+
+      osc.start();
+      setTimeout(() => { osc.frequency.value = 400; }, 150);
+      setTimeout(() => {
+        gain.gain.exponentialRampToValueAtTime(0.0001, this.audioCtx.currentTime + 0.1);
+        osc.stop(this.audioCtx.currentTime + 0.1);
+      }, 300);
     } catch (e) {}
+  },
+
+  // ================= Cleanup =================
+
+  cleanupCall() {
+    this.stopRingtone();
+    clearInterval(this.activeCall?.timerInterval);
+    clearInterval(this.speakingInterval);
+
+    this.stopLocalMedia();
+
+    // Close all WebRTC PeerConnections
+    this.peerConnections.forEach((pc) => {
+      try { pc.close(); } catch (e) {}
+    });
+    this.peerConnections.clear();
+    this.pendingCandidates.clear();
+
+    // Remove remote audio elements
+    this.audioElements.forEach((audio) => {
+      audio.srcObject = null;
+      audio.remove();
+    });
+    this.audioElements.clear();
+    this.remoteStreams.clear();
+    this.remoteMediaStates.clear();
+
+    // Reset video elements
+    const remoteVid = document.getElementById('remote-video-feed');
+    if (remoteVid) {
+      remoteVid.srcObject = null;
+      remoteVid.style.display = 'none';
+    }
+    const localVid = document.getElementById('local-video-feed');
+    if (localVid) {
+      localVid.srcObject = null;
+      localVid.style.display = 'none';
+    }
+
+    const groupGrid = document.getElementById('video-stage-group-grid');
+    if (groupGrid) groupGrid.innerHTML = '';
+
+    // Reset UI
+    const bar = document.getElementById('active-call-bar');
+    if (bar) bar.classList.remove('active');
+
+    const incomingModal = document.getElementById('incoming-call-modal');
+    if (incomingModal) incomingModal.classList.remove('active');
+
+    this.closeVideoStage();
+    this.updateGroupVoiceButtonUI(false);
+
+    this.activeCall = null;
+    this.isMuted = false;
+    this.isCameraOn = false;
+    this.isScreenSharing = false;
+    this.isDeafened = false;
+    this.isSpeaking = false;
   }
 };

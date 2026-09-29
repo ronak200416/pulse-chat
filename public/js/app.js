@@ -116,6 +116,65 @@ const App = {
       });
     }
 
+    // Video & Voice Call Header Buttons
+    const btnHeaderCall = document.getElementById('btn-header-call');
+    if (btnHeaderCall) {
+      btnHeaderCall.addEventListener('click', () => {
+        if (this.currentRoom && this.currentRoom.type === 'direct') {
+          const partner = this.friends.find(f => f.id === this.currentRoom.recipientId) || {
+            id: this.currentRoom.recipientId,
+            display_name: this.currentRoom.name,
+            username: this.currentRoom.name
+          };
+          CallManager.startDirectCall(
+            partner.id,
+            partner.display_name || partner.username,
+            partner.avatar_url || '',
+            partner.avatar_color || '#6366f1',
+            false
+          );
+        }
+      });
+    }
+
+    const btnHeaderVideoCall = document.getElementById('btn-header-video-call');
+    if (btnHeaderVideoCall) {
+      btnHeaderVideoCall.addEventListener('click', () => {
+        if (this.currentRoom && this.currentRoom.type === 'direct') {
+          const partner = this.friends.find(f => f.id === this.currentRoom.recipientId) || {
+            id: this.currentRoom.recipientId,
+            display_name: this.currentRoom.name,
+            username: this.currentRoom.name
+          };
+          CallManager.startDirectCall(
+            partner.id,
+            partner.display_name || partner.username,
+            partner.avatar_url || '',
+            partner.avatar_color || '#6366f1',
+            true
+          );
+        }
+      });
+    }
+
+    const btnHeaderJoinVoice = document.getElementById('btn-header-join-voice');
+    if (btnHeaderJoinVoice) {
+      btnHeaderJoinVoice.addEventListener('click', () => {
+        if (this.currentRoom && this.currentRoom.type === 'channel') {
+          CallManager.joinGroupVoice(this.currentRoom.id, this.currentRoom.name, false);
+        }
+      });
+    }
+
+    const btnHeaderJoinVideo = document.getElementById('btn-header-join-video');
+    if (btnHeaderJoinVideo) {
+      btnHeaderJoinVideo.addEventListener('click', () => {
+        if (this.currentRoom && this.currentRoom.type === 'channel') {
+          CallManager.joinGroupVoice(this.currentRoom.id, this.currentRoom.name, true);
+        }
+      });
+    }
+
     // Sound Toggle Button
     const btnSound = document.getElementById('btn-toggle-sound');
     const soundIcon = document.getElementById('sound-icon');
@@ -273,6 +332,7 @@ const App = {
     const btnCloseModal = document.getElementById('btn-close-friend-modal');
     const tabBtns = document.querySelectorAll('.friend-tab-btn');
     const searchInput = document.getElementById('friend-search-input');
+    const btnSubmit = document.getElementById('btn-submit-friend-request');
 
     if (btnOpenModal) {
       btnOpenModal.addEventListener('click', () => {
@@ -300,6 +360,19 @@ const App = {
       });
     });
 
+    const handleFriendSubmit = () => {
+      const q = searchInput ? searchInput.value.trim() : '';
+      if (!q) {
+        this.performFriendSearch('');
+        return;
+      }
+      this.sendFriendRequest(q);
+    };
+
+    if (btnSubmit) {
+      btnSubmit.addEventListener('click', handleFriendSubmit);
+    }
+
     if (searchInput) {
       searchInput.addEventListener('input', (e) => {
         clearTimeout(this.friendSearchDebounce);
@@ -307,6 +380,13 @@ const App = {
         this.friendSearchDebounce = setTimeout(() => {
           this.performFriendSearch(q);
         }, 300);
+      });
+
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handleFriendSubmit();
+        }
       });
     }
   },
@@ -347,16 +427,38 @@ const App = {
     if (actionsEl) actionsEl.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;padding:8px;">Loading profile...</div>';
 
     try {
-      const res = await fetch(`/api/users/search?q=${encodeURIComponent(userId)}`, {
-        headers: { 'Authorization': `Bearer ${Auth.token}` }
-      });
-      const data = await res.json();
-      let user = (data.users || []).find(u => u.id === userId);
+      let user = null;
+      let relationship = 'none';
+      let requestId = null;
+
+      try {
+        const res = await fetch(`/api/users/${encodeURIComponent(userId)}`, {
+          headers: { 'Authorization': `Bearer ${Auth.token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            user = data.user;
+            relationship = data.relationship || 'none';
+            requestId = data.request_id;
+          }
+        }
+      } catch (e) {}
+
       if (!user) {
-        user = this.users.find(u => u.id === userId);
+        const searchRes = await fetch(`/api/users/search?q=${encodeURIComponent(userId)}`, {
+          headers: { 'Authorization': `Bearer ${Auth.token}` }
+        });
+        const searchData = await searchRes.json();
+        user = (searchData.users || []).find(u => u.id === userId);
+        if (user) {
+          relationship = user.relationship || 'none';
+          requestId = user.request_id;
+        }
       }
+
       if (!user) {
-        user = { id: userId, username: 'user', display_name: 'Community Member' };
+        user = this.users.find(u => u.id === userId) || { id: userId, username: 'user', display_name: 'Community Member' };
       }
 
       const isOnline = this.onlineUserIds.has(user.id);
@@ -383,31 +485,34 @@ const App = {
       }
 
       let friendBtnHtml = '';
-      if (user.relationship === 'friends') {
+      if (relationship === 'friends') {
         friendBtnHtml = `
           <button class="btn btn-sm btn-primary" onclick="App.openDirectMessage('${user.id}', '${this.escapeHtml(user.display_name || user.username)}'); document.getElementById('user-profile-modal').classList.remove('active');">
             💬 Message
           </button>
-          <button class="btn btn-sm btn-success" onclick="CallManager.startDirectCall('${user.id}', '${this.escapeHtml(user.display_name || user.username)}', '${user.avatar_url || ''}', '${user.avatar_color || '#6366f1'}'); document.getElementById('user-profile-modal').classList.remove('active');">
+          <button class="btn btn-sm btn-success" onclick="CallManager.startDirectCall('${user.id}', '${this.escapeHtml(user.display_name || user.username)}', '${user.avatar_url || ''}', '${user.avatar_color || '#6366f1'}', false); document.getElementById('user-profile-modal').classList.remove('active');">
             📞 Voice Call
+          </button>
+          <button class="btn btn-sm btn-primary" style="background:#8b5cf6;" onclick="CallManager.startDirectCall('${user.id}', '${this.escapeHtml(user.display_name || user.username)}', '${user.avatar_url || ''}', '${user.avatar_color || '#6366f1'}', true); document.getElementById('user-profile-modal').classList.remove('active');">
+            📹 Video Call
           </button>
           <button class="btn btn-sm btn-glass text-danger" onclick="App.removeFriend('${user.id}', '${this.escapeHtml(user.username)}'); document.getElementById('user-profile-modal').classList.remove('active');">
             ✕ Unfriend
           </button>
         `;
-      } else if (user.relationship === 'pending_sent') {
+      } else if (relationship === 'pending_sent') {
         friendBtnHtml = `
           <span class="badge-sm" style="color:#f59e0b;font-size:0.8rem;padding:6px 12px;background:rgba(245,158,11,0.1);border-radius:6px;">⏳ Request Sent</span>
-          <button class="btn btn-sm btn-glass" onclick="App.rejectFriendRequest('${user.request_id}'); document.getElementById('user-profile-modal').classList.remove('active');">
+          <button class="btn btn-sm btn-glass" onclick="App.rejectFriendRequest('${requestId}'); document.getElementById('user-profile-modal').classList.remove('active');">
             Cancel Request
           </button>
         `;
-      } else if (user.relationship === 'pending_received') {
+      } else if (relationship === 'pending_received') {
         friendBtnHtml = `
-          <button class="btn btn-sm btn-success" onclick="App.acceptFriendRequest('${user.request_id}'); document.getElementById('user-profile-modal').classList.remove('active');">
+          <button class="btn btn-sm btn-success" onclick="App.acceptFriendRequest('${requestId}'); document.getElementById('user-profile-modal').classList.remove('active');">
             ✓ Accept Friend Request
           </button>
-          <button class="btn btn-sm btn-glass" onclick="App.rejectFriendRequest('${user.request_id}'); document.getElementById('user-profile-modal').classList.remove('active');">
+          <button class="btn btn-sm btn-glass" onclick="App.rejectFriendRequest('${requestId}'); document.getElementById('user-profile-modal').classList.remove('active');">
             ✕ Decline
           </button>
         `;
@@ -462,9 +567,9 @@ const App = {
       const input = document.getElementById('friend-search-input');
       if (input) {
         input.focus();
-        if (input.value.trim()) {
-          this.performFriendSearch(input.value.trim());
-        }
+        this.performFriendSearch(input.value.trim());
+      } else {
+        this.performFriendSearch('');
       }
     } else if (tabId === 'tab-pending-requests') {
       this.loadFriendRequests();
@@ -518,8 +623,11 @@ const App = {
             <button class="btn-friend-msg" title="Direct Message" onclick="App.openDirectMessage('${u.id}', '${this.escapeHtml(u.display_name || u.username)}')">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> <span>Chat</span>
             </button>
-            <button class="btn-friend-call" title="Voice Call" onclick="CallManager.startDirectCall('${u.id}', '${this.escapeHtml(u.display_name || u.username)}', '${u.avatar_url || ''}', '${u.avatar_color || '#6366f1'}')">
+            <button class="btn-friend-call" title="Voice Call" onclick="CallManager.startDirectCall('${u.id}', '${this.escapeHtml(u.display_name || u.username)}', '${u.avatar_url || ''}', '${u.avatar_color || '#6366f1'}', false)">
               📞
+            </button>
+            <button class="btn-friend-call btn-friend-video" title="Video Call" onclick="CallManager.startDirectCall('${u.id}', '${this.escapeHtml(u.display_name || u.username)}', '${u.avatar_url || ''}', '${u.avatar_color || '#6366f1'}', true)">
+              📹
             </button>
           `;
         } else if (u.relationship === 'pending_sent') {
@@ -969,6 +1077,22 @@ const App = {
       this.playChime('send');
       this.loadFriends();
       this.loadFriendRequests();
+      this.renderRoomMembers();
+    });
+
+    this.socket.on('friend_request_rejected', () => {
+      this.loadFriendRequests();
+      const searchInput = document.getElementById('friend-search-input');
+      if (searchInput) this.performFriendSearch(searchInput.value.trim());
+      this.renderRoomMembers();
+    });
+
+    this.socket.on('friend_removed', ({ friendId }) => {
+      this.loadFriends();
+      if (this.currentRoom && this.currentRoom.type === 'direct' && this.currentRoom.recipientId === friendId) {
+        this.showToast('Friendship ended');
+      }
+      this.renderRoomMembers();
     });
 
     this.socket.on('channel_created', (channel) => {
@@ -1473,13 +1597,19 @@ const App = {
 
     // Call header buttons toggle
     const btnCall = document.getElementById('btn-header-call');
+    const btnVideoCall = document.getElementById('btn-header-video-call');
     const btnVoice = document.getElementById('btn-header-join-voice');
+    const btnVideo = document.getElementById('btn-header-join-video');
     if (room.type === 'direct') {
       if (btnCall) btnCall.style.display = 'inline-flex';
+      if (btnVideoCall) btnVideoCall.style.display = 'inline-flex';
       if (btnVoice) btnVoice.style.display = 'none';
+      if (btnVideo) btnVideo.style.display = 'none';
     } else {
       if (btnCall) btnCall.style.display = 'none';
+      if (btnVideoCall) btnVideoCall.style.display = 'none';
       if (btnVoice) btnVoice.style.display = 'inline-flex';
+      if (btnVideo) btnVideo.style.display = 'inline-flex';
     }
 
     this.renderChannelsList();

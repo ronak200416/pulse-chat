@@ -427,13 +427,14 @@ class DatabaseService {
   }
 
   async createUser({ id, username, display_name, password_hash, avatar_color, avatar_url, bio, is_guest = 0 }) {
+    const userId = id || ('usr_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36));
     const now = Date.now();
     await this.run(
       `INSERT INTO users (id, username, display_name, password_hash, avatar_color, avatar_url, bio, status, is_guest, created_at, last_seen)
        VALUES (?, ?, ?, ?, ?, ?, ?, 'online', ?, ?, ?)`,
-      [id, username, display_name, password_hash || null, avatar_color || '#6366f1', avatar_url || null, bio || '', is_guest ? 1 : 0, now, now]
+      [userId, username, display_name || username, password_hash || null, avatar_color || '#6366f1', avatar_url || null, bio || '', is_guest ? 1 : 0, now, now]
     );
-    return await this.getUserById(id);
+    return await this.getUserById(userId);
   }
 
   async updateUserStatus(id, status) {
@@ -734,17 +735,23 @@ class DatabaseService {
     }
 
     const raw = targetIdentifier.trim();
-    const clean = raw.toLowerCase();
-    let receiver = await this.getOne('SELECT * FROM users WHERE id = ? OR LOWER(username) = ?', [raw, clean]);
+    const handle = raw.replace(/^@+/, '').trim();
+    const clean = handle.toLowerCase();
+
+    // Look up receiver by user ID, exact handle, or case-insensitive username / display name
+    let receiver = await this.getOne('SELECT * FROM users WHERE id = ? OR LOWER(username) = ? OR username = ?', [raw, clean, handle]);
     if (!receiver) {
-      return { error: 'User not found. Check the username or ID and try again.' };
+      receiver = await this.getOne('SELECT * FROM users WHERE LOWER(display_name) = ?', [clean]);
+    }
+    if (!receiver) {
+      return { error: `User "${raw}" not found. Please check the username or ID and try again.` };
     }
 
     if (receiver.id === senderId) {
       return { error: 'You cannot send a friend request to yourself.' };
     }
 
-    // Check existing relation
+    // Check existing relation in both directions
     const existing = await this.getOne(
       'SELECT * FROM friend_requests WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)',
       [senderId, receiver.id, receiver.id, senderId]
@@ -765,9 +772,8 @@ class DatabaseService {
         const friendUser = await this.getUserById(receiver.id);
         return { success: true, auto_accepted: true, message: `You and @${receiver.username} are now friends!`, friend: friendUser, requestId: existing.id, receiver_id: receiver.id };
       }
-      // If rejected, cancelled or stale, reopen as pending
-      await this.run('UPDATE friend_requests SET sender_id = ?, receiver_id = ?, status = "pending", updated_at = ? WHERE id = ?', [senderId, receiver.id, now, existing.id]);
-      return { success: true, message: `Friend request sent to @${receiver.username}!`, receiver, requestId: existing.id };
+      // If rejected, cancelled or stale, clean up conflicting rows and recreate fresh
+      await this.run('DELETE FROM friend_requests WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)', [senderId, receiver.id, receiver.id, senderId]);
     }
 
     const reqId = `freq_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -831,7 +837,7 @@ class DatabaseService {
 
   async getFriends(userId) {
     const sql = `
-      SELECT u.id, u.username, u.display_name, u.avatar_color, u.avatar_url, u.bio, u.status, u.last_seen, fr.updated_at as friendship_since
+      SELECT DISTINCT u.id, u.username, u.display_name, u.avatar_color, u.avatar_url, u.bio, u.status, u.last_seen, fr.updated_at as friendship_since
       FROM friend_requests fr
       JOIN users u ON (CASE WHEN fr.sender_id = ? THEN fr.receiver_id ELSE fr.sender_id END) = u.id
       WHERE (fr.sender_id = ? OR fr.receiver_id = ?) AND fr.status = 'accepted'
@@ -841,27 +847,28 @@ class DatabaseService {
   }
 
   async searchUsers(query, currentUserId) {
-    const trimmed = (query || '').trim();
+    const raw = (query || '').trim();
+    const handle = raw.replace(/^@+/, '').trim();
     let users = [];
 
-    if (!trimmed) {
+    if (!handle) {
       // Return recent active community members for instant discovery
       users = await this.getAll(`
         SELECT id, username, display_name, avatar_color, avatar_url, bio, status, last_seen
         FROM users
         WHERE id != ?
         ORDER BY last_seen DESC
-        LIMIT 30
+        LIMIT 40
       `, [currentUserId]);
     } else {
-      const clean = `%${trimmed.toLowerCase()}%`;
+      const clean = `%${handle.toLowerCase()}%`;
       users = await this.getAll(`
         SELECT id, username, display_name, avatar_color, avatar_url, bio, status, last_seen
         FROM users
-        WHERE id != ? AND (LOWER(username) LIKE ? OR LOWER(display_name) LIKE ? OR id LIKE ?)
+        WHERE id != ? AND (LOWER(username) LIKE ? OR LOWER(display_name) LIKE ? OR id LIKE ? OR id = ?)
         ORDER BY last_seen DESC
-        LIMIT 30
-      `, [currentUserId, clean, clean, clean]);
+        LIMIT 40
+      `, [currentUserId, clean, clean, clean, raw]);
     }
 
     const result = [];
