@@ -772,7 +772,7 @@ class DatabaseService {
       }
       if (existing.sender_id === receiver.id && existing.status === 'pending') {
         // Reverse pending request exists -> auto-accept
-        await this.run('UPDATE friend_requests SET status = "accepted", updated_at = ? WHERE id = ?', [now, existing.id]);
+        await this.run('UPDATE friend_requests SET status = ?, updated_at = ? WHERE id = ?', ['accepted', now, existing.id]);
         const friendUser = await this.getUserById(receiver.id);
         return { success: true, auto_accepted: true, message: `You and @${receiver.username} are now friends!`, friend: friendUser, requestId: existing.id, receiver_id: receiver.id };
       }
@@ -783,8 +783,8 @@ class DatabaseService {
 
     const reqId = `freq_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     await this.run(
-      'INSERT INTO friend_requests (id, sender_id, receiver_id, status, created_at, updated_at) VALUES (?, ?, ?, "pending", ?, ?)',
-      [reqId, senderId, receiver.id, now, now]
+      'INSERT INTO friend_requests (id, sender_id, receiver_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [reqId, senderId, receiver.id, 'pending', now, now]
     );
 
     return { success: true, message: `Friend request sent to @${receiver.username}!`, receiver, requestId: reqId };
@@ -823,7 +823,7 @@ class DatabaseService {
     }
 
     const now = Date.now();
-    await this.run('UPDATE friend_requests SET status = "accepted", updated_at = ? WHERE id = ?', [now, requestId]);
+    await this.run('UPDATE friend_requests SET status = ?, updated_at = ? WHERE id = ?', ['accepted', now, requestId]);
 
     const senderUser = await this.getUserById(req.sender_id);
     const receiverUser = await this.getUserById(req.receiver_id);
