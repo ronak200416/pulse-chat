@@ -634,6 +634,17 @@ const App = {
   },
 
   async sendFriendRequest(targetIdentifier) {
+    if (!targetIdentifier || !String(targetIdentifier).trim()) {
+      this.showToast('Please type a username or user ID');
+      return;
+    }
+    const cleanTarget = String(targetIdentifier).trim();
+    const submitBtn = document.getElementById('btn-friend-search-submit');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Sending...';
+    }
+
     try {
       const res = await fetch('/api/friends/request', {
         method: 'POST',
@@ -641,11 +652,11 @@ const App = {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${Auth.token}`
         },
-        body: JSON.stringify({ target: targetIdentifier })
+        body: JSON.stringify({ target: cleanTarget })
       });
       const data = await res.json();
       if (data.success) {
-        this.showToast(data.message || 'Friend request sent!');
+        this.showToast(data.message || 'Friend request sent! ✨');
         this.playChime('send');
         const searchInput = document.getElementById('friend-search-input');
         if (searchInput && searchInput.value.trim()) {
@@ -657,9 +668,16 @@ const App = {
         }
       } else if (data.error) {
         this.showToast(data.error);
+      } else {
+        this.showToast('Failed to send friend request');
       }
     } catch (e) {
-      this.showToast('Failed to send friend request');
+      this.showToast(e.message || 'Failed to send friend request. Check your connection.');
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '+ Send Request';
+      }
     }
   },
 

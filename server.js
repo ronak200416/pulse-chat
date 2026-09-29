@@ -36,6 +36,12 @@ const upload = multer({
 
 const app = express();
 const server = http.createServer(app);
+// Global In-Memory Socket & Call State (Top-Level)
+const onlineUsers = new Map(); // socket.id -> userId
+const userSocketMap = new Map(); // userId -> Set of socket.ids
+const activeDirectCalls = new Map(); // callId -> { callerId, recipientId, startTime }
+const groupVoiceRooms = new Map(); // channelId -> Map(socketId -> { userId, user })
+
 const io = new Server(server, {
   cors: {
     origin: '*',
@@ -292,47 +298,51 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
 app.post('/api/friends/request', authenticateToken, async (req, res) => {
   try {
     const { target } = req.body;
-    if (!target) {
-      return res.status(400).json({ error: 'Target username or ID is required' });
+    if (!target || !String(target).trim()) {
+      return res.status(400).json({ error: 'Please enter a username or user ID' });
     }
 
-    const result = await db.sendFriendRequest(req.user.id, target);
+    const result = await db.sendFriendRequest(req.user.id, String(target).trim());
     if (result.error) {
       return res.status(400).json({ error: result.error });
     }
 
-    // Socket alert to receiver if online
-    if (result.receiver) {
-      const receiverSockets = userSocketMap.get(result.receiver.id);
-      if (receiverSockets) {
-        const senderUser = await db.getUserById(req.user.id);
-        for (const sId of receiverSockets) {
-          io.to(sId).emit('friend_request_received', {
-            request_id: result.requestId,
-            sender: senderUser,
-            message: `@${senderUser.username} sent you a friend request!`
-          });
+    // Safe Real-Time Socket Alerts (non-blocking)
+    try {
+      if (result.receiver && userSocketMap) {
+        const receiverSockets = userSocketMap.get(result.receiver.id);
+        if (receiverSockets && receiverSockets.size > 0) {
+          const senderUser = await db.getUserById(req.user.id);
+          for (const sId of receiverSockets) {
+            io.to(sId).emit('friend_request_received', {
+              request_id: result.requestId,
+              sender: senderUser,
+              message: `@${senderUser ? senderUser.username : 'Someone'} sent you a friend request!`
+            });
+          }
         }
       }
-    }
 
-    if (result.auto_accepted && result.receiver_id) {
-      const targetSockets = userSocketMap.get(result.receiver_id);
-      if (targetSockets) {
-        const senderUser = await db.getUserById(req.user.id);
-        for (const sId of targetSockets) {
-          io.to(sId).emit('friend_request_accepted', {
-            friend: senderUser,
-            message: `You and @${senderUser.username} are now friends!`
-          });
+      if (result.auto_accepted && result.receiver_id && userSocketMap) {
+        const targetSockets = userSocketMap.get(result.receiver_id);
+        if (targetSockets && targetSockets.size > 0) {
+          const senderUser = await db.getUserById(req.user.id);
+          for (const sId of targetSockets) {
+            io.to(sId).emit('friend_request_accepted', {
+              friend: senderUser,
+              message: `You and @${senderUser ? senderUser.username : 'your friend'} are now friends!`
+            });
+          }
         }
       }
+    } catch (socketErr) {
+      console.warn('Socket alert error (non-fatal):', socketErr.message);
     }
 
-    res.json(result);
+    return res.json(result);
   } catch (err) {
     console.error('Send friend request error:', err);
-    res.status(500).json({ error: 'Failed to send friend request' });
+    return res.status(500).json({ error: err.message || 'Failed to send friend request' });
   }
 });
 
@@ -611,14 +621,7 @@ app.get('/api/network-info', async (req, res) => {
 
 // --- REAL-TIME SOCKET.IO ENGINE ---
 
-const onlineUsers = new Map();
-const userSocketMap = new Map();
-
-// WebRTC Voice Call Tracking
-// Map of callId -> { callerId, recipientId, startTime }
-const activeDirectCalls = new Map();
-// Map of channelId -> Map(socketId -> { userId, user })
-const groupVoiceRooms = new Map();
+// Socket & call state declared at top
 
 io.on('connection', (socket) => {
   let currentUser = null;

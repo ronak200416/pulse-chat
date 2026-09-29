@@ -730,25 +730,25 @@ class DatabaseService {
 
   // --- FRIEND REQUESTS & RELATIONSHIPS ---
   async sendFriendRequest(senderId, targetIdentifier) {
-    if (!targetIdentifier || !targetIdentifier.trim()) {
+    if (!targetIdentifier || !String(targetIdentifier).trim()) {
       return { error: 'Please enter a username or user ID' };
     }
 
-    const raw = targetIdentifier.trim();
+    const raw = String(targetIdentifier).trim();
     const handle = raw.replace(/^@+/, '').trim();
     const clean = handle.toLowerCase();
 
-    // Look up receiver by user ID, exact handle, or case-insensitive username / display name
+    // Look up receiver by ID, exact handle, lowercase username, or display name
     let receiver = await this.getOne('SELECT * FROM users WHERE id = ? OR LOWER(username) = ? OR username = ?', [raw, clean, handle]);
     if (!receiver) {
       receiver = await this.getOne('SELECT * FROM users WHERE LOWER(display_name) = ?', [clean]);
     }
     if (!receiver) {
-      // Partial fallback search
+      // Partial search fallback (excluding self)
       receiver = await this.getOne('SELECT * FROM users WHERE (LOWER(username) LIKE ? OR LOWER(display_name) LIKE ?) AND id != ? ORDER BY last_seen DESC LIMIT 1', [`%${clean}%`, `%${clean}%`, senderId]);
     }
     if (!receiver) {
-      return { error: `No user found matching "${raw}". Please check the username and try again.` };
+      return { error: `No user found matching "@${handle}". Please check the username and try again.` };
     }
 
     if (receiver.id === senderId) {
@@ -757,7 +757,7 @@ class DatabaseService {
 
     const now = Date.now();
 
-    // Check existing relation in both directions
+    // Check existing relationship in both directions
     const existing = await this.getOne(
       'SELECT * FROM friend_requests WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)',
       [senderId, receiver.id, receiver.id, senderId]
@@ -771,14 +771,14 @@ class DatabaseService {
         return { error: `Friend request to @${receiver.username} is already pending.` };
       }
       if (existing.sender_id === receiver.id && existing.status === 'pending') {
-        // Auto accept reverse request
+        // Reverse pending request exists -> auto-accept
         await this.run('UPDATE friend_requests SET status = "accepted", updated_at = ? WHERE id = ?', [now, existing.id]);
         const friendUser = await this.getUserById(receiver.id);
         return { success: true, auto_accepted: true, message: `You and @${receiver.username} are now friends!`, friend: friendUser, requestId: existing.id, receiver_id: receiver.id };
       }
     }
 
-    // Clean up any old/stale requests between these users before creating fresh
+    // Clean any prior rejected or stale records
     await this.run('DELETE FROM friend_requests WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)', [senderId, receiver.id, receiver.id, senderId]);
 
     const reqId = `freq_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
