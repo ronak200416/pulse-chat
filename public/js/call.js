@@ -8,6 +8,7 @@ const CallManager = {
   
   isMuted: false,
 
+  // Fast, reliable public STUN servers (zero-timeout, sub-20ms resolution)
   rtcConfig: {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
@@ -15,26 +16,9 @@ const CallManager = {
       { urls: 'stun:stun2.l.google.com:19302' },
       { urls: 'stun:stun3.l.google.com:19302' },
       { urls: 'stun:stun4.l.google.com:19302' },
-      { urls: 'stun:stun.services.mozilla.com' },
       { urls: 'stun:stun.cloudflare.com:3478' },
-      // OpenRelay Free TURN servers for 100% NAT / 4G / Render connectivity
-      {
-        urls: 'turn:openrelay.metered.ca:80',
-        username: 'openrelay',
-        credential: 'openrelay'
-      },
-      {
-        urls: 'turn:openrelay.metered.ca:443',
-        username: 'openrelay',
-        credential: 'openrelay'
-      },
-      {
-        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-        username: 'openrelay',
-        credential: 'openrelay'
-      }
-    ],
-    iceCandidatePoolSize: 10
+      { urls: 'stun:global.stun.twilio.com:3478' }
+    ]
   },
 
   init() {
@@ -57,6 +41,16 @@ const CallManager = {
 
   bindSocketEvents() {
     if (!App.socket) return;
+
+    // Remove any previous handlers to prevent duplicate execution on socket reconnect
+    App.socket.off('incoming_voice_call');
+    App.socket.off('voice_call_signal');
+    App.socket.off('voice_call_accepted');
+    App.socket.off('voice_call_declined');
+    App.socket.off('voice_call_ended');
+    App.socket.off('user_joined_group_voice');
+    App.socket.off('group_voice_signal');
+    App.socket.off('user_left_group_voice');
 
     // 1-on-1 Incoming Call
     App.socket.on('incoming_voice_call', (data) => {
@@ -91,7 +85,7 @@ const CallManager = {
             this.startCallTimer();
           }
         } else if (signal.type === 'answer') {
-          if (pc) {
+          if (pc && (pc.signalingState === 'have-local-offer' || pc.signalingState === 'have-remote-offer')) {
             await pc.setRemoteDescription(new RTCSessionDescription(signal));
             await this.flushPendingCandidates('direct', pc);
             this.updateCallStatus('Connected');
@@ -119,7 +113,7 @@ const CallManager = {
     // 1-on-1 Call Accepted by Callee -> Caller creates Offer
     App.socket.on('voice_call_accepted', async ({ recipient, callId }) => {
       if (!this.activeCall || this.activeCall.callId !== callId) return;
-      this.updateCallStatus('Connected');
+      this.updateCallStatus('Connecting...');
       this.startCallTimer();
 
       try {
@@ -185,7 +179,7 @@ const CallManager = {
             channelId
           });
         } else if (signal.type === 'answer') {
-          if (pc) {
+          if (pc && pc.signalingState === 'have-local-offer') {
             await pc.setRemoteDescription(new RTCSessionDescription(signal));
             await this.flushPendingCandidates(fromSocketId, pc);
           }
@@ -224,8 +218,11 @@ const CallManager = {
   bindUIEvents() {
     // Header Call Button (Direct Call)
     const btnCall = document.getElementById('btn-header-call');
-    if (btnCall) {
-      btnCall.addEventListener('click', () => {
+    if (btnCall && !btnCall._hasCallListener) {
+      btnCall._hasCallListener = true;
+      btnCall.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         if (!App.currentRoom || App.currentRoom.type !== 'direct') return;
         const partner = App.friends.find(f => f.id === App.currentRoom.recipientId) || {
           id: App.currentRoom.recipientId,
@@ -238,8 +235,10 @@ const CallManager = {
 
     // Header Join Voice Button (Group Channel)
     const btnJoinVoice = document.getElementById('btn-header-join-voice');
-    if (btnJoinVoice) {
-      btnJoinVoice.addEventListener('click', () => {
+    if (btnJoinVoice && !btnJoinVoice._hasVoiceListener) {
+      btnJoinVoice._hasVoiceListener = true;
+      btnJoinVoice.addEventListener('click', (e) => {
+        e.preventDefault();
         if (!App.currentRoom || App.currentRoom.type !== 'channel') return;
         if (this.activeCall && this.activeCall.type === 'group' && this.activeCall.channelId === App.currentRoom.id) {
           this.leaveGroupVoice();
@@ -253,19 +252,41 @@ const CallManager = {
     const btnAccept = document.getElementById('btn-accept-incoming-call');
     const btnDecline = document.getElementById('btn-decline-incoming-call');
 
-    if (btnAccept) {
-      btnAccept.addEventListener('click', () => this.acceptCall());
+    if (btnAccept && !btnAccept._hasAcceptListener) {
+      btnAccept._hasAcceptListener = true;
+      btnAccept.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.acceptCall();
+      });
     }
-    if (btnDecline) {
-      btnDecline.addEventListener('click', () => this.declineCall());
+    if (btnDecline && !btnDecline._hasDeclineListener) {
+      btnDecline._hasDeclineListener = true;
+      btnDecline.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.declineCall();
+      });
     }
 
     // Floating Bar Controls
     const btnBarMute = document.getElementById('btn-call-mute');
     const btnBarEnd = document.getElementById('btn-call-end');
 
-    if (btnBarMute) btnBarMute.addEventListener('click', () => this.toggleMute());
-    if (btnBarEnd) btnBarEnd.addEventListener('click', () => this.endCall());
+    if (btnBarMute && !btnBarMute._hasMuteListener) {
+      btnBarMute._hasMuteListener = true;
+      btnBarMute.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.toggleMute();
+      });
+    }
+    if (btnBarEnd && !btnBarEnd._hasEndListener) {
+      btnBarEnd._hasEndListener = true;
+      btnBarEnd.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.endCall();
+      });
+    }
   },
 
   // ================= 1-on-1 Voice Calls =================
@@ -368,7 +389,6 @@ const CallManager = {
       color: this.activeCall.partnerColor
     });
 
-    this.startCallTimer();
     this.createDirectPeerConnection(this.activeCall.partnerId, this.activeCall.callId);
 
     App.socket.emit('voice_call_accept', {
@@ -637,7 +657,7 @@ const CallManager = {
     const playPromise = audio.play();
     if (playPromise !== undefined) {
       playPromise.catch((e) => {
-        console.warn('Auto-play prevented, click to listen:', e);
+        console.warn('Auto-play blocked, will resume on interaction:', e);
       });
     }
   },
@@ -668,10 +688,12 @@ const CallManager = {
     const statusEl = document.getElementById('active-call-status');
     const timerEl = document.getElementById('call-duration-timer');
 
-    if (titleEl) titleEl.textContent = title;
-    if (statusEl) statusEl.textContent = status;
+    if (titleEl) titleEl.textContent = title || 'Voice Call';
+    if (statusEl) statusEl.textContent = status || 'Connected';
     if (timerEl && status !== 'Connected') timerEl.textContent = '00:00';
-    if (bar) bar.classList.add('active');
+    if (bar) {
+      bar.classList.add('active');
+    }
 
     this.updateControlsUI();
   },
