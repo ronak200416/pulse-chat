@@ -211,7 +211,7 @@ const Chat = {
     
     if (iconEl) {
       if (isGeneral) {
-        iconEl.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+        iconEl.innerHTML = '<img src="img/antra-icon.svg" alt="antra" style="width:22px; height:22px; border-radius:5px; display:block;">';
       } else if (isChannel) {
         iconEl.innerHTML = '<span class="room-hash">#</span>';
       } else {
@@ -268,7 +268,7 @@ const Chat = {
 
     if (cdIcon) {
       if (isGeneral) {
-        cdIcon.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+        cdIcon.innerHTML = '<img src="img/antra-icon.svg" alt="antra" style="width:26px; height:26px; border-radius:6px; display:block;">';
       } else if (isChannel) {
         cdIcon.innerHTML = '<span class="room-hash">#</span>';
       } else {

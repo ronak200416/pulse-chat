@@ -704,26 +704,27 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
   width: 36px;
   height: 36px;
   border-radius: var(--radius-md);
-  background: rgba(99, 102, 241, 0.15);
-  border: 1px solid rgba(99, 102, 241, 0.3);
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.25);
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   flex-shrink: 0;
+  overflow: hidden;
+}
+.general-logo-img {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  object-fit: cover;
+  display: block;
 }
 .general-icon {
   font-size: 1.15rem;
-}
-.general-pulse-dot {
-  position: absolute;
-  bottom: -1px;
-  right: -1px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background-color: var(--accent-success);
-  border: 1.5px solid var(--bg-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .general-info {
   flex: 1;
