@@ -220,15 +220,6 @@ const Chat = {
       }
     }
 
-    if (tagEl) {
-      if (isChannel && !isGeneral) {
-        tagEl.style.display = 'inline-block';
-        tagEl.textContent = 'Channel';
-      } else {
-        tagEl.style.display = 'none';
-      }
-    }
-
     // Update Right Sidebar
     const rightTitle = document.getElementById('right-sidebar-title');
     const rightSub = document.getElementById('right-sidebar-subtitle');
