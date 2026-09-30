@@ -236,11 +236,20 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 // 5. Update Profile
 app.put('/api/users/profile', authenticateToken, async (req, res) => {
   try {
-    const { display_name, bio, avatar_color, avatar_url } = req.body;
-    const updated = await db.updateUserProfile(req.user.id, { display_name, bio, avatar_color, avatar_url });
+    const { display_name, bio, avatar_color, avatar_url } = req.body || {};
+    const updated = await db.updateUserProfile(req.user.id, {
+      display_name: typeof display_name === 'string' ? display_name.trim() : undefined,
+      bio: typeof bio === 'string' ? bio.trim() : undefined,
+      avatar_color: typeof avatar_color === 'string' ? avatar_color : undefined,
+      avatar_url: typeof avatar_url === 'string' ? avatar_url : undefined
+    });
+    if (!updated) {
+      return res.status(404).json({ error: 'User not found' });
+    }
     io.emit('user_profile_updated', updated);
     res.json({ user: updated });
   } catch (err) {
+    console.error('Update profile error:', err);
     res.status(500).json({ error: 'Failed to update profile' });
   }
 });

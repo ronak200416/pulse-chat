@@ -374,51 +374,86 @@ const Auth = {
     });
 
     // Submit Profile Update
-    if (this.profileForm) {
-      this.profileForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const displayName = document.getElementById('edit-display-name').value.trim();
-        const bio = document.getElementById('edit-bio').value.trim();
-        const submitBtn = this.profileForm.querySelector('button[type="submit"]');
-        if (submitBtn) submitBtn.disabled = true;
+    const handleProfileSubmit = async (e) => {
+      if (e) e.preventDefault();
+      const nameInput = document.getElementById('edit-display-name');
+      const bioInput = document.getElementById('edit-bio');
+      const displayName = nameInput ? nameInput.value.trim() : '';
+      const bio = bioInput ? bioInput.value.trim() : '';
+      const submitBtn = document.getElementById('btn-save-profile') || (this.profileForm ? this.profileForm.querySelector('button[type="submit"]') : null);
 
-        try {
-          const res = await fetch('/api/users/profile', {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${this.token}`
-            },
-            body: JSON.stringify({
-              display_name: displayName,
-              bio,
-              avatar_color: this.selectedEditColor
-            })
-          });
-          const data = await res.json();
-          if (data.user) {
-            this.user = data.user;
-            this.updateUserUI();
-            if (window.App) {
-              if (Array.isArray(App.users)) {
-                const idx = App.users.findIndex(u => u.id === data.user.id);
-                if (idx !== -1) App.users[idx] = { ...App.users[idx], ...data.user };
-              }
-              if (Array.isArray(App.friends)) {
-                const fIdx = App.friends.findIndex(f => f.id === data.user.id);
-                if (fIdx !== -1) App.friends[fIdx] = { ...App.friends[fIdx], ...data.user };
-              }
-              App.showToast('Profile updated successfully!');
+      if (!displayName) {
+        if (window.App) App.showToast('Display name cannot be empty');
+        if (nameInput) nameInput.focus();
+        return;
+      }
+
+      const activeColor = this.selectedEditColor || (this.user ? this.user.avatar_color : '#6366f1');
+      const token = this.token || localStorage.getItem('antra_token') || localStorage.getItem('pulse_token');
+
+      if (!token) {
+        if (window.App) App.showToast('Authentication required. Please sign in again.');
+        this.showAuthModal();
+        return;
+      }
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Saving...';
+      }
+
+      try {
+        const res = await fetch('/api/users/profile', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            display_name: displayName,
+            bio: bio,
+            avatar_color: activeColor
+          })
+        });
+        const data = await res.json();
+        if (res.ok && data.user) {
+          this.user = data.user;
+          this.updateUserUI();
+          if (window.App) {
+            if (Array.isArray(App.users)) {
+              const idx = App.users.findIndex(u => u.id === data.user.id);
+              if (idx !== -1) App.users[idx] = { ...App.users[idx], ...data.user };
             }
-            this.closeProfileModal();
-          } else if (data.error) {
-            if (window.App) App.showToast(data.error);
+            if (Array.isArray(App.friends)) {
+              const fIdx = App.friends.findIndex(f => f.id === data.user.id);
+              if (fIdx !== -1) App.friends[fIdx] = { ...App.friends[fIdx], ...data.user };
+            }
+            App.showToast('Profile updated successfully!');
           }
-        } catch (err) {
-          if (window.App) App.showToast('Failed to update profile');
-        } finally {
-          if (submitBtn) submitBtn.disabled = false;
+          this.closeProfileModal();
+        } else {
+          const errMsg = data.error || `Error ${res.status}: Failed to update profile`;
+          console.error('Profile update failed:', errMsg);
+          if (window.App) App.showToast(errMsg);
         }
+      } catch (err) {
+        console.error('Profile update network error:', err);
+        if (window.App) App.showToast('Server connection error while saving profile');
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Save Changes';
+        }
+      }
+    };
+
+    if (this.profileForm) {
+      this.profileForm.addEventListener('submit', handleProfileSubmit);
+    }
+    const btnSaveProfile = document.getElementById('btn-save-profile');
+    if (btnSaveProfile) {
+      btnSaveProfile.addEventListener('click', (e) => {
+        handleProfileSubmit(e);
       });
     }
 

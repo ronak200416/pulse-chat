@@ -373,21 +373,23 @@ class DatabaseService {
 
   // --- QUERY EXECUTION (UNIFIED ASYNC) ---
   async run(sql, params = []) {
+    const safeParams = Array.isArray(params) ? params.map(p => p === undefined ? null : p) : params;
     if (this.isTurso) {
-      await this.tursoClient.execute({ sql, args: params });
+      await this.tursoClient.execute({ sql, args: safeParams });
     } else {
-      this.db.run(sql, params);
+      this.db.run(sql, safeParams);
       this.saveLocal();
     }
   }
 
   async getOne(sql, params = []) {
+    const safeParams = Array.isArray(params) ? params.map(p => p === undefined ? null : p) : params;
     if (this.isTurso) {
-      const res = await this.tursoClient.execute({ sql, args: params });
+      const res = await this.tursoClient.execute({ sql, args: safeParams });
       return res.rows.length > 0 ? res.rows[0] : null;
     } else {
       const stmt = this.db.prepare(sql);
-      stmt.bind(params);
+      stmt.bind(safeParams);
       let row = null;
       if (stmt.step()) {
         row = stmt.getAsObject();
@@ -398,12 +400,13 @@ class DatabaseService {
   }
 
   async getAll(sql, params = []) {
+    const safeParams = Array.isArray(params) ? params.map(p => p === undefined ? null : p) : params;
     if (this.isTurso) {
-      const res = await this.tursoClient.execute({ sql, args: params });
+      const res = await this.tursoClient.execute({ sql, args: safeParams });
       return res.rows;
     } else {
       const stmt = this.db.prepare(sql);
-      stmt.bind(params);
+      stmt.bind(safeParams);
       const rows = [];
       while (stmt.step()) {
         rows.push(stmt.getAsObject());
@@ -443,9 +446,14 @@ class DatabaseService {
   }
 
   async updateUserProfile(id, { display_name, bio, avatar_color, avatar_url }) {
+    const safeDisplayName = display_name !== undefined ? display_name : null;
+    const safeBio = bio !== undefined ? bio : null;
+    const safeAvatarColor = avatar_color !== undefined ? avatar_color : null;
+    const safeAvatarUrl = avatar_url !== undefined ? avatar_url : null;
+
     await this.run(
       'UPDATE users SET display_name = COALESCE(?, display_name), bio = COALESCE(?, bio), avatar_color = COALESCE(?, avatar_color), avatar_url = COALESCE(?, avatar_url) WHERE id = ?',
-      [display_name, bio, avatar_color, avatar_url, id]
+      [safeDisplayName, safeBio, safeAvatarColor, safeAvatarUrl, id]
     );
     return await this.getUserById(id);
   }
