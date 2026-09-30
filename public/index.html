@@ -679,7 +679,7 @@
         <div class="friend-search-wrap">
           <form class="friend-input-search-bar" id="form-friend-search" onsubmit="event.preventDefault(); App.handleFriendSubmit();">
             <svg class="friend-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            <input type="text" id="friend-search-input" placeholder="Enter username (e.g. alice) or ID..." autocomplete="off">
+            <input type="text" id="friend-search-input" placeholder="Enter user name or UID" autocomplete="off">
             <button type="submit" class="btn btn-sm btn-primary btn-friend-search-submit" id="btn-friend-search-submit" title="Send Friend Request">
               + Send Request
             </button>
@@ -688,13 +688,12 @@
         <div class="friend-search-results custom-scroll" id="friend-search-results">
           <div class="friend-empty-connect-state">
             <div class="friend-connect-icon-box">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
               </svg>
             </div>
-            <h4>Connect with Friends</h4>
-            <p>Type a username or unique ID above to search and send a friend request.</p>
+            <h4>Find Users</h4>
+            <p>Enter a user name or UID above to search and send a friend request.</p>
           </div>
         </div>
       </div>
@@ -727,18 +726,6 @@
             <h4>No Friends Added Yet</h4>
             <p>Search for users in the "Find & Add" tab to send friend requests.</p>
           </div>
-        </div>
-      </div>
-
-      <!-- Modal Footer -->
-      <div class="friend-modal-footer">
-        <div class="friend-footer-left">
-          <span class="auth-green-dot"></span>
-          <span>antra Direct Messaging Protocol</span>
-        </div>
-        <div class="friend-footer-right">
-          <span class="esc-badge">Esc</span>
-          <span>to close</span>
         </div>
       </div>
     </div>

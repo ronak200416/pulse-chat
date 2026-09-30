@@ -287,7 +287,7 @@ const App = {
     const input = document.getElementById('friend-search-input');
     const q = input ? input.value.trim() : '';
     if (!q) {
-      this.showToast('Please type a username to send a friend request');
+      this.showToast('Please enter a user name or UID');
       return;
     }
     this.sendFriendRequest(q);
@@ -532,10 +532,26 @@ const App = {
     const container = document.getElementById('friend-search-results');
     if (!container) return;
 
-    container.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted);">Finding users...</div>';
+    const trimmed = (query || '').trim();
+    if (!trimmed) {
+      container.innerHTML = `
+        <div class="friend-empty-connect-state">
+          <div class="friend-connect-icon-box">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+          </div>
+          <h4>Find Users</h4>
+          <p>Enter a user name or UID above to search and send a friend request.</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted);">Searching users...</div>';
 
     try {
-      const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`, {
+      const res = await fetch(`/api/users/search?q=${encodeURIComponent(trimmed)}`, {
         headers: { 'Authorization': `Bearer ${Auth.token}` }
       });
       const data = await res.json();
@@ -548,20 +564,13 @@ const App = {
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
             </div>
             <h4>No Users Found</h4>
-            <p>${query ? `No user matches "${this.escapeHtml(query)}".` : 'No other users registered yet.'}</p>
+            <p>No user matches "${this.escapeHtml(trimmed)}".</p>
           </div>
         `;
         return;
       }
 
       container.innerHTML = '';
-      if (!query) {
-        const subhead = document.createElement('div');
-        subhead.className = 'friend-section-subhead';
-        subhead.textContent = 'DISCOVER COMMUNITY MEMBERS';
-        container.appendChild(subhead);
-      }
-
       users.forEach(u => {
         const isOnline = this.onlineUserIds.has(u.id);
         const card = document.createElement('div');
