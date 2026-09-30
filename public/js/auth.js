@@ -25,11 +25,6 @@ const Auth = {
     this.regColorPicker = document.getElementById('reg-color-picker');
     this.selectedRegColor = '#6366f1';
 
-    // Live Preview Elements
-    this.previewAvatar = document.getElementById('preview-avatar');
-    this.previewDisplayName = document.getElementById('preview-display-name');
-    this.previewHandle = document.getElementById('preview-handle');
-
     // Profile Modal
     this.profileModal = document.getElementById('profile-modal');
     this.profileForm = document.getElementById('profile-form');
@@ -48,7 +43,6 @@ const Auth = {
     }
     const regUserInput = document.getElementById('reg-username');
     if (regUserInput) regUserInput.focus();
-    this.updateLivePreview();
   },
 
   switchToLogin() {
@@ -62,23 +56,6 @@ const Auth = {
     }
     const loginUserInput = document.getElementById('login-username');
     if (loginUserInput) loginUserInput.focus();
-  },
-
-  updateLivePreview() {
-    const username = this.regUsernameInput ? this.regUsernameInput.value.trim() : '';
-    const displayName = this.regDisplayNameInput ? this.regDisplayNameInput.value.trim() : '';
-
-    if (this.previewDisplayName) {
-      this.previewDisplayName.textContent = displayName || username || 'Ronak Mishra';
-    }
-    if (this.previewHandle) {
-      this.previewHandle.textContent = `@${username || 'ronak_dev'}`;
-    }
-    if (this.previewAvatar) {
-      const initial = (displayName || username || 'R').charAt(0).toUpperCase();
-      this.previewAvatar.textContent = initial;
-      this.previewAvatar.style.backgroundColor = this.selectedRegColor || '#6366f1';
-    }
   },
 
   bindEvents() {
@@ -123,16 +100,6 @@ const Auth = {
       });
     }
 
-    // Live preview event listeners on register inputs
-    if (this.regUsernameInput) {
-      this.regUsernameInput.addEventListener('input', () => this.updateLivePreview());
-    }
-    if (this.regDisplayNameInput) {
-      this.regDisplayNameInput.addEventListener('input', () => this.updateLivePreview());
-    }
-
-
-
     // Register color pills bar picker
     if (this.regColorPicker) {
       const regColorName = document.getElementById('reg-color-name');
@@ -145,7 +112,6 @@ const Auth = {
           const colorName = pill.getAttribute('data-name');
           if (color) this.selectedRegColor = color;
           if (regColorName && colorName) regColorName.textContent = colorName;
-          this.updateLivePreview();
         }
       });
     }
