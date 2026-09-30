@@ -202,11 +202,14 @@ html, body {
   border: none;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .icon-btn:hover {
   color: var(--text-primary);
   background: var(--bg-hover);
+}
+.icon-btn:active {
+  transform: scale(0.92);
 }
 .icon-btn-sm {
   width: 32px;
@@ -219,9 +222,10 @@ html, body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .icon-btn-sm:hover { background: var(--bg-hover); color: var(--text-primary); }
+.icon-btn-sm:active { transform: scale(0.92); }
 
 .icon-btn-xs {
   width: 24px;
@@ -234,8 +238,10 @@ html, body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .icon-btn-xs:hover { color: var(--text-primary); background: var(--bg-hover); }
+.icon-btn-xs:active { transform: scale(0.92); }
 
 /* ================= MODAL & AUTH ================= */
 .modal-overlay {
@@ -1661,17 +1667,36 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
 /* ================= RIGHT SIDEBAR (MATCHES IMAGE 1) ================= */
 .app-right-sidebar {
   width: var(--right-sidebar-width);
+  min-width: var(--right-sidebar-width);
   height: 100%;
   background: var(--bg-surface);
   border-left: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  transition: width 0.25s ease, transform 0.25s ease;
+  transition: width 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+              min-width 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.25s ease;
+  overflow: hidden;
   z-index: 20;
+  will-change: width, min-width, opacity;
 }
+
+.right-sidebar-header,
+.right-sidebar-content {
+  width: var(--right-sidebar-width);
+  min-width: var(--right-sidebar-width);
+  flex-shrink: 0;
+}
+
 .app-right-sidebar.collapsed {
-  display: none;
+  display: flex !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  border-left-color: transparent !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 .right-sidebar-header {
   height: var(--header-height);
@@ -2070,18 +2095,33 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
     bottom: 0;
     height: 100vh;
     height: 100dvh;
-    width: min(340px, 88vw);
+    width: min(340px, 88vw) !important;
+    min-width: 0 !important;
     z-index: 1000;
     box-shadow: -10px 0 35px rgba(0, 0, 0, 0.75);
     transform: translate3d(0, 0, 0);
-    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.35s ease;
     will-change: transform;
     background: #0f1422;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
   }
+
+  .app-right-sidebar .right-sidebar-header,
+  .app-right-sidebar .right-sidebar-content {
+    width: 100%;
+    min-width: 0;
+  }
+
   .app-right-sidebar.collapsed {
-    display: flex !important;
-    transform: translate3d(105%, 0, 0);
-    pointer-events: none;
+    width: min(340px, 88vw) !important;
+    min-width: 0 !important;
+    transform: translate3d(105%, 0, 0) !important;
+    box-shadow: none !important;
+    pointer-events: none !important;
+    opacity: 1 !important;
   }
 }
 
@@ -2126,13 +2166,15 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
     width: min(310px, 85vw);
     z-index: 1000;
     transform: translate3d(-105%, 0, 0);
-    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.35s ease;
     will-change: transform;
-    box-shadow: 10px 0 35px rgba(0, 0, 0, 0.8);
+    box-shadow: none;
     background: #0d121e;
   }
   .app-sidebar.open {
     transform: translate3d(0, 0, 0);
+    box-shadow: 10px 0 35px rgba(0, 0, 0, 0.8);
   }
 
   .sidebar-backdrop {
@@ -2145,7 +2187,7 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
     z-index: 990;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.25s ease;
+    transition: opacity 0.32s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .sidebar-backdrop.active {
     opacity: 1;
