@@ -240,6 +240,7 @@ const Chat = {
     const onlineCountEl = document.getElementById('overview-online-count');
     const secSection = document.getElementById('security-policy-section');
     const customMembersSection = document.getElementById('custom-members-section');
+    const channelOverviewSection = document.getElementById('channel-overview-section');
 
     if (rightTitle) rightTitle.textContent = isGeneral ? 'General' : (isChannel ? `#${room.name}` : room.name);
     if (rightSub) {
@@ -303,6 +304,10 @@ const Chat = {
 
     if (secSection) {
       secSection.style.display = 'none';
+    }
+
+    if (channelOverviewSection) {
+      channelOverviewSection.style.display = isChannel ? 'block' : 'none';
     }
 
     if (customMembersSection) {

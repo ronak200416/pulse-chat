@@ -1502,19 +1502,26 @@ const App = {
       this.socket.emit('join_room', room.id);
     }
 
-    // Header voice call buttons toggle
+    // Header voice call buttons & sidebar toggle
     const btnCall = document.getElementById('btn-header-call');
     const btnVoice = document.getElementById('btn-header-join-voice');
+    const btnToggleMembers = document.getElementById('btn-toggle-members');
+    const rightSidebar = document.getElementById('app-right-sidebar');
     const isGeneral = room && (room.id === 'chan_general' || (room.name && room.name.toLowerCase() === 'general'));
+
     if (room.type === 'direct') {
       if (btnCall) btnCall.style.display = 'inline-flex';
       if (btnVoice) btnVoice.style.display = 'none';
+      if (btnToggleMembers) btnToggleMembers.style.display = 'none';
+      if (rightSidebar) rightSidebar.classList.add('collapsed');
     } else if (isGeneral) {
       if (btnCall) btnCall.style.display = 'none';
       if (btnVoice) btnVoice.style.display = 'none';
+      if (btnToggleMembers) btnToggleMembers.style.display = 'inline-flex';
     } else {
       if (btnCall) btnCall.style.display = 'none';
       if (btnVoice) btnVoice.style.display = 'inline-flex';
+      if (btnToggleMembers) btnToggleMembers.style.display = 'inline-flex';
     }
 
     this.renderChannelsList();
