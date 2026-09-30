@@ -13,6 +13,8 @@ const CallManager = {
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
       { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:stun3.l.google.com:19302' },
+      { urls: 'stun:stun4.l.google.com:19302' },
       { urls: 'stun:stun.services.mozilla.com' },
       { urls: 'stun:stun.cloudflare.com:3478' },
       // OpenRelay Free TURN servers for 100% NAT / 4G / Render connectivity
@@ -83,18 +85,30 @@ const CallManager = {
             signal: answer,
             callId
           });
+
+          this.updateCallStatus('Connected');
+          if (!this.activeCall.startTime) {
+            this.startCallTimer();
+          }
         } else if (signal.type === 'answer') {
           if (pc) {
             await pc.setRemoteDescription(new RTCSessionDescription(signal));
             await this.flushPendingCandidates('direct', pc);
+            this.updateCallStatus('Connected');
+            if (!this.activeCall.startTime) {
+              this.startCallTimer();
+            }
           }
         } else if (signal.candidate) {
+          const candidateData = signal.candidate;
           if (pc && pc.remoteDescription && pc.remoteDescription.type) {
             try {
-              await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
-            } catch (err) {}
+              await pc.addIceCandidate(new RTCIceCandidate(candidateData));
+            } catch (err) {
+              console.warn('Direct addIceCandidate error:', err);
+            }
           } else {
-            this.queuePendingCandidate('direct', signal.candidate);
+            this.queuePendingCandidate('direct', candidateData);
           }
         }
       } catch (err) {
@@ -176,13 +190,20 @@ const CallManager = {
             await this.flushPendingCandidates(fromSocketId, pc);
           }
         } else if (signal.candidate) {
+          const candidateData = signal.candidate;
           if (pc && pc.remoteDescription && pc.remoteDescription.type) {
-            try { await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)); } catch (e) {}
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(candidateData));
+            } catch (e) {
+              console.warn('Group addIceCandidate error:', e);
+            }
           } else {
-            this.queuePendingCandidate(fromSocketId, signal.candidate);
+            this.queuePendingCandidate(fromSocketId, candidateData);
           }
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error('Group signaling error:', e);
+      }
     });
 
     App.socket.on('user_left_group_voice', ({ socketId }) => {
@@ -283,7 +304,7 @@ const CallManager = {
       };
 
       this.showActiveCallBar({
-        title: `Calling ${partnerName}...`,
+        title: partnerName,
         status: 'Ringing...',
         name: partnerName,
         color: partnerColor
@@ -306,7 +327,8 @@ const CallManager = {
       partnerName: caller.display_name || caller.username,
       partnerAvatar: caller.avatar_url,
       partnerColor: caller.avatar_color || '#6366f1',
-      isCaller: false
+      isCaller: false,
+      startTime: null
     };
 
     const modal = document.getElementById('incoming-call-modal');
@@ -376,6 +398,10 @@ const CallManager = {
     pc.ontrack = (event) => {
       const stream = event.streams && event.streams[0] ? event.streams[0] : new MediaStream([event.track]);
       this.attachRemoteAudio('direct', stream);
+      this.updateCallStatus('Connected');
+      if (this.activeCall && !this.activeCall.startTime) {
+        this.startCallTimer();
+      }
     };
 
     // ICE Candidates
@@ -383,15 +409,29 @@ const CallManager = {
       if (event.candidate && this.activeCall) {
         App.socket.emit('voice_call_signal', {
           targetUserId: partnerId,
-          signal: { candidate: event.candidate },
+          signal: { candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate },
           callId: this.activeCall.callId || callId
         });
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+        this.updateCallStatus('Connected');
+        if (this.activeCall && !this.activeCall.startTime) {
+          this.startCallTimer();
+        }
+      } else if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+        this.updateCallStatus('Reconnecting...');
       }
     };
 
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'connected') {
         this.updateCallStatus('Connected');
+        if (this.activeCall && !this.activeCall.startTime) {
+          this.startCallTimer();
+        }
       } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
         this.updateCallStatus('Reconnecting...');
       }
@@ -509,7 +549,7 @@ const CallManager = {
       if (event.candidate && this.activeCall) {
         App.socket.emit('group_voice_signal', {
           targetSocketId,
-          signal: { candidate: event.candidate },
+          signal: { candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate },
           channelId: this.activeCall.channelId
         });
       }
@@ -524,7 +564,9 @@ const CallManager = {
           signal: offer,
           channelId: this.activeCall.channelId
         });
-      } catch (err) {}
+      } catch (err) {
+        console.error('Group initiator offer error:', err);
+      }
     }
 
     return pc;
@@ -580,6 +622,8 @@ const CallManager = {
       audio = document.createElement('audio');
       audio.autoplay = true;
       audio.playsInline = true;
+      audio.setAttribute('autoplay', '');
+      audio.setAttribute('playsinline', '');
       audio.volume = 1.0;
       audio.style.position = 'fixed';
       audio.style.opacity = '0';
@@ -590,7 +634,12 @@ const CallManager = {
     }
 
     audio.srcObject = stream;
-    audio.play().catch(() => {});
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((e) => {
+        console.warn('Auto-play prevented, click to listen:', e);
+      });
+    }
   },
 
   startCallTimer() {
@@ -598,7 +647,11 @@ const CallManager = {
     const timerBar = document.getElementById('call-duration-timer');
     if (!this.activeCall) return;
 
-    this.activeCall.startTime = Date.now();
+    if (!this.activeCall.startTime) {
+      this.activeCall.startTime = Date.now();
+    }
+    if (timerBar) timerBar.textContent = '00:00';
+
     this.activeCall.timerInterval = setInterval(() => {
       if (!this.activeCall || !this.activeCall.startTime) return;
       const elapsed = Math.floor((Date.now() - this.activeCall.startTime) / 1000);
@@ -613,9 +666,11 @@ const CallManager = {
     const bar = document.getElementById('active-call-bar');
     const titleEl = document.getElementById('active-call-title');
     const statusEl = document.getElementById('active-call-status');
+    const timerEl = document.getElementById('call-duration-timer');
 
     if (titleEl) titleEl.textContent = title;
     if (statusEl) statusEl.textContent = status;
+    if (timerEl && status !== 'Connected') timerEl.textContent = '00:00';
     if (bar) bar.classList.add('active');
 
     this.updateControlsUI();
@@ -666,7 +721,9 @@ const CallManager = {
     for (const cand of queue) {
       try {
         await pc.addIceCandidate(new RTCIceCandidate(cand));
-      } catch (err) {}
+      } catch (err) {
+        console.warn('flush candidate error:', err);
+      }
     }
     this.pendingCandidates.delete(id);
   },

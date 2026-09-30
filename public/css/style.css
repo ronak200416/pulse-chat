@@ -3686,25 +3686,24 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
 
 /* Header Voice Call Buttons */
 .btn-call-header {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.2) 100%);
-  border: 1px solid rgba(16, 185, 129, 0.4);
-  color: #34d399;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: var(--radius-full);
-  font-weight: 600;
-  font-size: 0.82rem;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .btn-call-header:hover {
-  background: #10b981;
-  color: #ffffff;
-  border-color: #10b981;
-  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
-  transform: translateY(-1px);
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+.btn-call-header:active {
+  transform: scale(0.92);
 }
 
 .btn-voice-header {
@@ -3762,11 +3761,12 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
 }
 
 .btn-quick-call {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: rgba(16, 185, 129, 0.18);
-  border: 1px solid rgba(16, 185, 129, 0.35);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
   font-size: 0.8rem;
   display: inline-flex;
   align-items: center;
@@ -3775,26 +3775,29 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   transition: all 0.15s ease;
 }
 .btn-quick-call:hover {
-  background: #10b981;
-  transform: scale(1.15);
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  transform: scale(1.08);
 }
 
 .btn-friend-call {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: rgba(16, 185, 129, 0.15);
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  color: #34d399;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 .btn-friend-call:hover {
-  background: #10b981;
-  color: #fff;
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.15);
   transform: translateY(-1px);
 }
 
@@ -3835,11 +3838,12 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
 }
 
 .active-call-status-dot {
-  width: 10px;
-  height: 10px;
-  background: #10b981;
+  width: 8px;
+  height: 8px;
+  background: var(--text-primary);
   border-radius: 50%;
-  animation: pulse-ring 1.5s infinite;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  animation: pulse-ring 1.8s infinite;
 }
 
 .active-call-meta {
@@ -3865,12 +3869,12 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
 .active-call-timer {
   font-family: monospace;
   font-size: 0.85rem;
-  font-weight: 700;
-  color: #34d399;
-  background: rgba(16, 185, 129, 0.12);
+  font-weight: 600;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
   padding: 3px 8px;
   border-radius: 6px;
-  border: 1px solid rgba(16, 185, 129, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .active-call-participants-wrap {
@@ -3895,14 +3899,14 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
 }
 
 .call-participant-avatar.is-speaking-pulse {
-  border-color: #10b981;
-  box-shadow: 0 0 14px #10b981;
+  border-color: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.4);
   animation: speaking-glow 1s infinite alternate;
 }
 
 @keyframes speaking-glow {
-  0% { transform: scale(1); box-shadow: 0 0 4px #10b981; }
-  100% { transform: scale(1.12); box-shadow: 0 0 16px #10b981; }
+  0% { transform: scale(1); box-shadow: 0 0 4px rgba(255, 255, 255, 0.3); }
+  100% { transform: scale(1.12); box-shadow: 0 0 16px rgba(255, 255, 255, 0.6); }
 }
 
 .active-call-controls {
@@ -4051,19 +4055,21 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
 }
 
 .btn-call-accept {
-  background: #10b981;
-  color: #fff;
-  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   animation: accept-bounce 1.5s infinite ease-in-out;
 }
 .btn-call-accept:hover {
-  background: #059669;
-  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.6);
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.6);
 }
 
 @keyframes accept-bounce {
   0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.08); }
+  50% { transform: scale(1.06); }
 }
 
 /* User Profile Quick-Action Popover Modal */

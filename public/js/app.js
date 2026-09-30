@@ -472,8 +472,8 @@ const App = {
           <button class="btn btn-sm btn-primary" onclick="App.openDirectMessage('${user.id}', '${this.escapeHtml(user.display_name || user.username)}'); document.getElementById('user-profile-modal').classList.remove('active');">
             Message
           </button>
-          <button class="btn btn-sm btn-success" onclick="CallManager.startDirectCall('${user.id}', '${this.escapeHtml(user.display_name || user.username)}', '${user.avatar_url || ''}', '${user.avatar_color || '#6366f1'}'); document.getElementById('user-profile-modal').classList.remove('active');">
-            Voice Call
+          <button class="btn btn-sm btn-glass" onclick="CallManager.startDirectCall('${user.id}', '${this.escapeHtml(user.display_name || user.username)}', '${user.avatar_url || ''}', '${user.avatar_color || '#6366f1'}'); document.getElementById('user-profile-modal').classList.remove('active');">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Voice Call
           </button>
           <button class="btn btn-sm btn-glass text-danger" onclick="App.removeFriend('${user.id}', '${this.escapeHtml(user.username)}'); document.getElementById('user-profile-modal').classList.remove('active');">
             ✕ Unfriend
@@ -603,7 +603,7 @@ const App = {
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> <span>Chat</span>
             </button>
             <button class="btn-friend-call" title="Voice Call" onclick="CallManager.startDirectCall('${u.id}', '${this.escapeHtml(u.display_name || u.username)}', '${u.avatar_url || ''}', '${u.avatar_color || '#6366f1'}')">
-              📞 Call
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg> <span>Call</span>
             </button>
           `;
         } else if (u.relationship === 'pending_sent') {
@@ -1434,7 +1434,7 @@ const App = {
           </div>
           <div style="display:flex;align-items:center;gap:6px;">
             <span class="status-indicator ${isOnline ? 'online' : 'offline'}"></span>
-            <button class="btn-quick-call" title="Start voice call" onclick="event.stopPropagation(); CallManager.startDirectCall('${partner.id}', '${this.escapeHtml(partner.display_name || partner.username)}', '${partner.avatar_url || ''}', '${partner.avatar_color || '#6366f1'}')">📞</button>
+            <button class="btn-quick-call" title="Start voice call" onclick="event.stopPropagation(); CallManager.startDirectCall('${partner.id}', '${this.escapeHtml(partner.display_name || partner.username)}', '${partner.avatar_url || ''}', '${partner.avatar_color || '#6366f1'}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>
           </div>
         `;
         memberList.appendChild(partnerItem);
