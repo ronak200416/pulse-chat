@@ -65,7 +65,9 @@
 
 html, body {
   width: 100%;
-  height: 100%;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100dvh;
   overflow: hidden;
   font-family: var(--font-sans);
   font-size: 15px;
@@ -74,6 +76,17 @@ html, body {
   background-color: var(--bg-base);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+.app-shell {
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  overflow: hidden;
+  position: relative;
 }
 
 /* Custom Scrollbars */
@@ -751,19 +764,10 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
   color: var(--text-primary);
 }
 .nav-item.active {
-  background: var(--bg-active);
+  background: rgba(99, 102, 241, 0.16);
   color: #fff;
   font-weight: 600;
-}
-.nav-item.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 6px;
-  bottom: 6px;
-  width: 3px;
-  background: var(--accent-primary);
-  border-radius: 0 4px 4px 0;
+  border-radius: var(--radius-md);
 }
 .nav-item-icon {
   font-size: 1.05rem;
@@ -2057,21 +2061,26 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
 }
 
 /* ================= RESPONSIVE MOBILE & TABLET BREAKPOINTS ================= */
+/* ================= RESPONSIVE MOBILE & TABLET BREAKPOINTS (HELLA OPTIMIZED FOR ANDROID & MOBILE) ================= */
 @media (max-width: 900px) {
   .app-right-sidebar {
     position: fixed;
     top: 0;
     right: 0;
     bottom: 0;
-    width: min(320px, 86vw);
+    height: 100vh;
+    height: 100dvh;
+    width: min(340px, 88vw);
     z-index: 1000;
-    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.7);
-    transform: translateX(0);
-    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: -10px 0 35px rgba(0, 0, 0, 0.75);
+    transform: translate3d(0, 0, 0);
+    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+    will-change: transform;
+    background: #0f1422;
   }
   .app-right-sidebar.collapsed {
     display: flex !important;
-    transform: translateX(105%);
+    transform: translate3d(105%, 0, 0);
     pointer-events: none;
   }
 }
@@ -2084,16 +2093,27 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
   html, body, .app-shell {
     height: 100vh;
     height: 100dvh;
+    min-height: 100dvh;
     overflow: hidden;
+  }
+
+  /* Universal touch button tap optimization */
+  button, [role="button"], .nav-item, .general-chat-card, .composer-action-btn, .icon-btn {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .mobile-menu-btn { 
     display: inline-flex !important; 
     align-items: center;
     justify-content: center;
+    min-width: 40px;
+    min-height: 40px;
   }
   .close-sidebar-btn { 
     display: inline-flex !important; 
+    min-width: 36px;
+    min-height: 36px;
   }
 
   .app-sidebar {
@@ -2101,23 +2121,27 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
     top: 0;
     left: 0;
     bottom: 0;
-    width: min(300px, 85vw);
+    height: 100vh;
+    height: 100dvh;
+    width: min(310px, 85vw);
     z-index: 1000;
-    transform: translateX(-105%);
-    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
-    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.7);
+    transform: translate3d(-105%, 0, 0);
+    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+    will-change: transform;
+    box-shadow: 10px 0 35px rgba(0, 0, 0, 0.8);
+    background: #0d121e;
   }
   .app-sidebar.open {
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0);
   }
 
   .sidebar-backdrop {
     display: block;
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.65);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
     z-index: 990;
     opacity: 0;
     pointer-events: none;
@@ -2129,27 +2153,36 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
   }
 
   .chat-header {
-    padding: 0 10px;
-    gap: 8px;
+    padding: 0 8px;
+    gap: 6px;
+    background: rgba(11, 15, 25, 0.98);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   }
   .header-left {
     min-width: 0;
     flex: 1;
     gap: 8px;
   }
+  .room-icon-badge {
+    width: 34px;
+    height: 34px;
+    font-size: 1.05rem;
+    flex-shrink: 0;
+  }
   .room-details {
     min-width: 0;
     flex: 1;
   }
   .room-title-row {
-    gap: 6px;
+    gap: 5px;
+    align-items: center;
   }
   #current-room-title {
-    font-size: 0.95rem;
+    font-size: 0.92rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 140px;
+    max-width: 130px;
   }
   #current-room-desc {
     font-size: 0.7rem;
@@ -2157,8 +2190,12 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .room-type-tag {
+    font-size: 0.6rem;
+    padding: 1px 5px;
+  }
   .search-box {
-    display: none; /* Hidden on mobile header to maximize chat title & controls */
+    display: none;
   }
 
   #btn-header-delete-group span,
@@ -2172,99 +2209,130 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
   }
 
   .messages-container {
-    padding: 12px 8px;
+    padding: 10px 8px;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
   }
   .chat-welcome-banner {
-    padding: 24px 14px;
-    margin-bottom: 18px;
+    padding: 20px 12px;
+    margin-bottom: 16px;
+    border-radius: 14px;
   }
   .welcome-icon-box {
-    width: 44px;
-    height: 44px;
-    font-size: 1.3rem;
+    width: 42px;
+    height: 42px;
+    font-size: 1.25rem;
   }
   #welcome-title {
-    font-size: 1.1rem;
+    font-size: 1.05rem;
   }
   #welcome-desc {
-    font-size: 0.8rem;
+    font-size: 0.78rem;
+    line-height: 1.4;
   }
 
   .message-item {
     gap: 8px;
-    padding: 3px 0;
+    padding: 4px 0;
   }
   .message-avatar {
     width: 32px;
     height: 32px;
     font-size: 0.82rem;
+    flex-shrink: 0;
   }
-  .msg-bubble {
-    max-width: 90%;
-    font-size: 0.9rem;
+  .msg-body {
+    min-width: 0;
+  }
+  .msg-header {
+    gap: 6px;
+    align-items: baseline;
+  }
+  .msg-sender {
+    font-size: 0.85rem;
+  }
+  .msg-timestamp {
+    font-size: 0.68rem;
+  }
+  .msg-content {
+    font-size: 0.88rem;
+    line-height: 1.45;
+    word-break: break-word;
+    overflow-wrap: break-word;
   }
   .message-action-bar {
     top: -10px;
-    right: 4px;
+    right: 2px;
     opacity: 1;
     pointer-events: auto;
-    background: rgba(18, 24, 38, 0.92);
+    background: rgba(18, 24, 38, 0.94);
     backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 8px;
+    padding: 2px;
+    gap: 2px;
   }
 
   .chat-composer {
-    padding: 0 8px calc(env(safe-area-inset-bottom, 10px) + 8px);
+    padding: 4px 8px calc(env(safe-area-inset-bottom, 8px) + 6px);
+    background: #0b0f19;
   }
   .composer-box {
-    padding: 5px 8px;
+    padding: 4px 8px;
     gap: 4px;
-    border-radius: 20px;
+    border-radius: 22px;
+    background: #141b2d;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    align-items: center;
   }
   .composer-action-btn {
-    width: 34px;
-    height: 34px;
-    font-size: 1.05rem;
+    width: 36px;
+    height: 36px;
+    font-size: 1.1rem;
+    border-radius: 50%;
   }
   .send-btn {
     width: 36px;
     height: 36px;
+    border-radius: 50%;
   }
   .textarea-wrapper textarea {
-    font-size: 16px; /* Critical: Prevents automatic iOS Safari viewport zoom */
-    padding: 7px 4px;
-    min-height: 36px;
+    font-size: 16px !important; /* Critical: 16px eliminates automatic mobile viewport zoom on focus */
+    padding: 6px 4px;
+    min-height: 34px;
+    line-height: 1.35;
   }
 
   .emoji-picker-popover {
-    width: calc(100vw - 20px);
-    max-width: 340px;
-    right: 10px;
-    bottom: 74px;
-    left: 10px;
+    width: calc(100vw - 16px);
+    max-width: 350px;
+    right: 8px;
+    bottom: 68px;
+    left: 8px;
     margin: 0 auto;
+    border-radius: 16px;
   }
 
   /* Modals on Mobile */
   .modal-overlay {
-    padding: 10px;
+    padding: 8px;
+    align-items: flex-end; /* Modern bottom-sheet style feel on mobile */
   }
   .modal-card {
     width: 100% !important;
     max-width: 100% !important;
     max-height: 90dvh;
-    padding: 18px 16px;
-    border-radius: 14px;
+    padding: 16px 14px;
+    border-radius: 18px 18px 12px 12px;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .friend-manager-modal-card {
     width: 100% !important;
     max-width: 100% !important;
     min-height: auto !important;
     max-height: 90dvh !important;
-    padding: 18px 16px !important;
+    padding: 16px 14px !important;
   }
   .friend-modal-tabs {
     overflow-x: auto;
@@ -2285,7 +2353,7 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
   }
   .friend-card-left {
     min-width: 0;
-    flex: 1 1 180px;
+    flex: 1 1 160px;
   }
   .friend-card-actions {
     display: flex;
@@ -2308,21 +2376,13 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
 
 @media (max-width: 480px) {
   #current-room-title {
-    max-width: 110px;
+    max-width: 105px;
   }
   .cd-overview-table {
     padding: 10px;
   }
-  .voice-recording-bar {
-    padding: 8px 12px;
-    flex-direction: column;
-    gap: 8px;
-    align-items: stretch;
-  }
-  .voice-rec-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 6px;
+  .privacy-notice-box {
+    padding: 10px;
   }
 }
 
