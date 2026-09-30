@@ -244,7 +244,14 @@ const App = {
     const btnSidebarDelete = document.getElementById('btn-sidebar-delete-group');
     const handleDelete = async () => {
       if (!this.currentRoom || this.currentRoom.type !== 'channel' || this.currentRoom.id === 'chan_general') return;
-      if (!confirm(`Are you sure you want to permanently delete the group #${this.currentRoom.name}? This will remove all its messages.`)) return;
+      const ok = await this.confirm({
+        title: 'Delete Group',
+        message: `Are you sure you want to permanently delete the group #${this.currentRoom.name}? This will remove all its messages and cannot be undone.`,
+        confirmText: 'Delete Group',
+        danger: true,
+        icon: '🗑️'
+      });
+      if (!ok) return;
 
       try {
         const res = await fetch(`/api/channels/${this.currentRoom.id}`, {
@@ -272,7 +279,14 @@ const App = {
     const btnSidebarLeave = document.getElementById('btn-sidebar-leave-group');
     const handleLeave = async () => {
       if (!this.currentRoom || this.currentRoom.type !== 'channel' || this.currentRoom.id === 'chan_general') return;
-      if (!confirm(`Are you sure you want to leave the group #${this.currentRoom.name}?`)) return;
+      const ok = await this.confirm({
+        title: 'Leave Group',
+        message: `Are you sure you want to leave the group #${this.currentRoom.name}?`,
+        confirmText: 'Leave Group',
+        danger: true,
+        icon: '🚪'
+      });
+      if (!ok) return;
 
       try {
         const res = await fetch(`/api/channels/${this.currentRoom.id}/leave`, {
@@ -732,7 +746,14 @@ const App = {
   },
 
   async removeFriend(friendId, friendName) {
-    if (!confirm(`Are you sure you want to remove @${friendName} from your friends?`)) return;
+    const ok = await this.confirm({
+      title: 'Remove Friend',
+      message: `Are you sure you want to remove @${friendName} from your friends list?`,
+      confirmText: 'Remove Friend',
+      danger: true,
+      icon: '👤'
+    });
+    if (!ok) return;
 
     try {
       const res = await fetch(`/api/friends/${friendId}`, {
@@ -1468,7 +1489,14 @@ const App = {
 
   async removeMemberFromGroup(userId, displayName) {
     if (!this.currentRoom || this.currentRoom.type !== 'channel' || this.currentRoom.id === 'chan_general') return;
-    if (!confirm(`Remove ${displayName} from #${this.currentRoom.name}?`)) return;
+    const ok = await this.confirm({
+      title: 'Remove Member',
+      message: `Are you sure you want to remove ${displayName} from #${this.currentRoom.name}?`,
+      confirmText: 'Remove Member',
+      danger: true,
+      icon: '✕'
+    });
+    if (!ok) return;
 
     try {
       const res = await fetch(`/api/channels/${this.currentRoom.id}/members/${userId}`, {
@@ -1606,6 +1634,175 @@ const App = {
     return div.innerHTML;
   },
 
+  confirm({ title = 'Confirm Action', message = 'Are you sure?', confirmText = 'Confirm', cancelText = 'Cancel', danger = false, icon = '⚡' } = {}) {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('app-dialog-modal');
+      const titleEl = document.getElementById('dialog-title');
+      const msgEl = document.getElementById('dialog-message');
+      const iconEl = document.getElementById('dialog-icon');
+      const inputWrap = document.getElementById('dialog-input-wrapper');
+      const btnConfirm = document.getElementById('btn-dialog-confirm');
+      const btnCancel = document.getElementById('btn-dialog-cancel');
+      const btnClose = document.getElementById('btn-dialog-close');
+
+      if (!modal) {
+        resolve(window.confirm ? window.confirm(message) : true);
+        return;
+      }
+
+      if (titleEl) titleEl.textContent = title;
+      if (msgEl) msgEl.textContent = message;
+      if (iconEl) iconEl.textContent = icon;
+      if (inputWrap) inputWrap.style.display = 'none';
+
+      if (btnConfirm) {
+        btnConfirm.textContent = confirmText;
+        btnConfirm.className = danger ? 'btn btn-danger' : 'btn btn-primary';
+      }
+      if (btnCancel) {
+        btnCancel.textContent = cancelText;
+        btnCancel.style.display = 'inline-flex';
+      }
+
+      const cleanup = (result) => {
+        modal.classList.remove('active');
+        btnConfirm.removeEventListener('click', onConfirm);
+        btnCancel.removeEventListener('click', onCancel);
+        if (btnClose) btnClose.removeEventListener('click', onCancel);
+        document.removeEventListener('keydown', onKeyDown);
+        resolve(result);
+      };
+
+      const onConfirm = () => cleanup(true);
+      const onCancel = () => cleanup(false);
+      const onKeyDown = (e) => {
+        if (e.key === 'Escape') cleanup(false);
+        if (e.key === 'Enter') cleanup(true);
+      };
+
+      btnConfirm.addEventListener('click', onConfirm);
+      btnCancel.addEventListener('click', onCancel);
+      if (btnClose) btnClose.addEventListener('click', onCancel);
+      document.addEventListener('keydown', onKeyDown);
+
+      modal.classList.add('active');
+      btnConfirm.focus();
+    });
+  },
+
+  prompt({ title = 'Input Required', message = '', defaultValue = '', placeholder = '', confirmText = 'Save', cancelText = 'Cancel', icon = '✏️' } = {}) {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('app-dialog-modal');
+      const titleEl = document.getElementById('dialog-title');
+      const msgEl = document.getElementById('dialog-message');
+      const iconEl = document.getElementById('dialog-icon');
+      const inputWrap = document.getElementById('dialog-input-wrapper');
+      const inputEl = document.getElementById('dialog-input');
+      const btnConfirm = document.getElementById('btn-dialog-confirm');
+      const btnCancel = document.getElementById('btn-dialog-cancel');
+      const btnClose = document.getElementById('btn-dialog-close');
+
+      if (!modal || !inputEl) {
+        resolve(window.prompt ? window.prompt(message, defaultValue) : null);
+        return;
+      }
+
+      if (titleEl) titleEl.textContent = title;
+      if (msgEl) msgEl.textContent = message;
+      if (iconEl) iconEl.textContent = icon;
+      if (inputWrap) inputWrap.style.display = 'block';
+
+      inputEl.value = defaultValue || '';
+      inputEl.placeholder = placeholder || '';
+
+      if (btnConfirm) {
+        btnConfirm.textContent = confirmText;
+        btnConfirm.className = 'btn btn-primary';
+      }
+      if (btnCancel) {
+        btnCancel.textContent = cancelText;
+        btnCancel.style.display = 'inline-flex';
+      }
+
+      const cleanup = (result) => {
+        modal.classList.remove('active');
+        btnConfirm.removeEventListener('click', onConfirm);
+        btnCancel.removeEventListener('click', onCancel);
+        if (btnClose) btnClose.removeEventListener('click', onCancel);
+        document.removeEventListener('keydown', onKeyDown);
+        resolve(result);
+      };
+
+      const onConfirm = () => cleanup(inputEl.value);
+      const onCancel = () => cleanup(null);
+      const onKeyDown = (e) => {
+        if (e.key === 'Escape') cleanup(null);
+        if (e.key === 'Enter') cleanup(inputEl.value);
+      };
+
+      btnConfirm.addEventListener('click', onConfirm);
+      btnCancel.addEventListener('click', onCancel);
+      if (btnClose) btnClose.addEventListener('click', onCancel);
+      document.addEventListener('keydown', onKeyDown);
+
+      modal.classList.add('active');
+      setTimeout(() => {
+        inputEl.focus();
+        inputEl.select();
+      }, 50);
+    });
+  },
+
+  alert({ title = 'Notice', message = '', okText = 'OK', icon = 'ℹ️' } = {}) {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('app-dialog-modal');
+      const titleEl = document.getElementById('dialog-title');
+      const msgEl = document.getElementById('dialog-message');
+      const iconEl = document.getElementById('dialog-icon');
+      const inputWrap = document.getElementById('dialog-input-wrapper');
+      const btnConfirm = document.getElementById('btn-dialog-confirm');
+      const btnCancel = document.getElementById('btn-dialog-cancel');
+      const btnClose = document.getElementById('btn-dialog-close');
+
+      if (!modal) {
+        if (window.alert) window.alert(message);
+        resolve();
+        return;
+      }
+
+      if (titleEl) titleEl.textContent = title;
+      if (msgEl) msgEl.textContent = message;
+      if (iconEl) iconEl.textContent = icon;
+      if (inputWrap) inputWrap.style.display = 'none';
+
+      if (btnConfirm) {
+        btnConfirm.textContent = okText;
+        btnConfirm.className = 'btn btn-primary';
+      }
+      if (btnCancel) btnCancel.style.display = 'none';
+
+      const cleanup = () => {
+        modal.classList.remove('active');
+        btnConfirm.removeEventListener('click', onOk);
+        if (btnClose) btnClose.removeEventListener('click', onOk);
+        document.removeEventListener('keydown', onKeyDown);
+        resolve();
+      };
+
+      const onOk = () => cleanup();
+      const onKeyDown = (e) => {
+        if (e.key === 'Escape' || e.key === 'Enter') cleanup();
+      };
+
+      btnConfirm.addEventListener('click', onOk);
+      if (btnClose) btnClose.addEventListener('click', onOk);
+      document.addEventListener('keydown', onKeyDown);
+
+      modal.classList.add('active');
+      btnConfirm.focus();
+    });
+  },
+
   showToast(msg) {
     const container = document.getElementById('toast-container');
     if (!container) return;
@@ -1617,9 +1814,9 @@ const App = {
 
     setTimeout(() => {
       toast.style.opacity = '0';
-      toast.style.transform = 'translateY(10px)';
-      toast.style.transition = 'all 0.3s';
-      setTimeout(() => toast.remove(), 300);
+      toast.style.transform = 'translateY(-10px) scale(0.95)';
+      toast.style.transition = 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)';
+      setTimeout(() => toast.remove(), 260);
     }, 3000);
   }
 };

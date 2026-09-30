@@ -305,6 +305,54 @@ html, body {
   gap: 10px;
 }
 
+/* Centered Dialog Modal (Replaces browser confirm/prompt/alert) */
+.dialog-modal-card {
+  max-width: 420px;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 35px rgba(99, 102, 241, 0.12);
+}
+.dialog-icon {
+  font-size: 1.15rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.dialog-message {
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  margin: 0;
+  word-break: break-word;
+}
+.dialog-input-wrapper {
+  margin-top: 14px;
+}
+.dialog-input-field {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 0.92rem;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.dialog-input-field:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+}
+.dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--border-subtle);
+}
+
 /* Auth Card specifics */
 .auth-card {
   max-width: 480px;
@@ -1125,6 +1173,22 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
   font-size: 0.95rem;
   flex-shrink: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.msg-avatar.anon-avatar-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.msg-avatar.anon-avatar-box svg,
+.anon-dp-svg {
+  width: 19px;
+  height: 19px;
+  display: block;
+  stroke: #94a3b8;
 }
 
 .msg-body {
@@ -2056,33 +2120,42 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
   border-radius: var(--radius-full);
 }
 
-/* ================= TOASTS ================= */
+/* ================= TOASTS (CENTERED POPUP) ================= */
 .toast-container {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 10px;
   z-index: 3000;
+  pointer-events: none;
+  max-width: min(440px, 92vw);
+  width: 100%;
 }
 .toast {
-  background: var(--bg-surface-elevated);
-  border: 1px solid var(--border-subtle);
+  pointer-events: auto;
+  background: rgba(15, 20, 34, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-left: 4px solid var(--accent-primary);
   padding: 12px 18px;
   border-radius: var(--radius-md);
   color: var(--text-primary);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75), 0 0 20px rgba(99, 102, 241, 0.15);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   font-size: 0.88rem;
+  font-weight: 500;
   display: flex;
   align-items: center;
   gap: 10px;
   animation: toast-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes toast-in {
-  from { opacity: 0; transform: translateX(50px); }
-  to { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translateY(-15px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* ================= RESPONSIVE MOBILE & TABLET BREAKPOINTS ================= */
@@ -2355,26 +2428,30 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
     border-radius: 16px;
   }
 
-  /* Modals on Mobile */
+  /* Modals on Mobile - Fully Centered Popups */
   .modal-overlay {
-    padding: 8px;
-    align-items: flex-end; /* Modern bottom-sheet style feel on mobile */
+    padding: 16px;
+    align-items: center !important;
+    justify-content: center !important;
   }
   .modal-card {
     width: 100% !important;
-    max-width: 100% !important;
+    max-width: 440px !important;
     max-height: 90dvh;
     padding: 16px 14px;
-    border-radius: 18px 18px 12px 12px;
+    border-radius: var(--radius-xl) !important;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    margin: auto;
   }
   .friend-manager-modal-card {
     width: 100% !important;
-    max-width: 100% !important;
+    max-width: 440px !important;
     min-height: auto !important;
     max-height: 90dvh !important;
     padding: 16px 14px !important;
+    border-radius: var(--radius-xl) !important;
+    margin: auto;
   }
   .friend-modal-tabs {
     overflow-x: auto;

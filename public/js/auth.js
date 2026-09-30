@@ -382,7 +382,16 @@ const Auth = {
     // Logout
     const btnLogout = document.getElementById('btn-logout');
     if (btnLogout) {
-      btnLogout.addEventListener('click', () => this.logout());
+      btnLogout.addEventListener('click', async () => {
+        const ok = await App.confirm({
+          title: 'Sign Out',
+          message: 'Are you sure you want to sign out of your account?',
+          confirmText: 'Sign Out',
+          danger: true,
+          icon: '🚪'
+        });
+        if (ok) this.logout();
+      });
     }
   },
 

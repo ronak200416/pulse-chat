@@ -224,7 +224,7 @@ const Chat = {
     const customMembersSection = document.getElementById('custom-members-section');
 
     if (rightTitle) rightTitle.textContent = isGeneral ? 'General' : (isChannel ? `#${room.name}` : room.name);
-    if (rightSub) rightSub.textContent = isChannel ? 'Channel Details' : 'Direct Message Details';
+    if (rightSub) rightSub.textContent = isChannel ? 'Channel Details' : 'Direct Message';
     if (cdName) cdName.textContent = isGeneral ? 'General' : (isChannel ? `#${room.name}` : room.name);
     
     if (cdBadge) {
@@ -332,8 +332,8 @@ const Chat = {
 
     if (isGeneral) {
       senderName = isMe ? 'Anonymous (You)' : 'Anonymous';
-      avatarBg = isMe ? '#475569' : '#334155';
-      initial = '🕶️';
+      avatarBg = isMe ? '#252d43' : '#1e2438';
+      initial = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="anon-dp-svg"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
     }
 
     // Reply Bubble if quoting
@@ -401,7 +401,7 @@ const Chat = {
     `;
 
     el.innerHTML = `
-      <div class="msg-avatar" style="background:${avatarBg}; ${isGeneral ? 'font-size:1.1rem;display:flex;align-items:center;justify-content:center;' : ''}">${initial}</div>
+      <div class="msg-avatar ${isGeneral ? 'anon-avatar-box' : ''}" style="background:${avatarBg};">${initial}</div>
       <div class="msg-body">
         <div class="msg-header">
           <span class="msg-sender ${isGeneral ? 'text-anon' : ''}">${this.escapeHtml(senderName)}</span>
@@ -624,18 +624,32 @@ const Chat = {
     });
   },
 
-  deleteMessage(msgId) {
-    if (!confirm('Are you sure you want to delete this message?')) return;
+  async deleteMessage(msgId) {
+    const ok = await App.confirm({
+      title: 'Delete Message',
+      message: 'Are you sure you want to permanently delete this message?',
+      confirmText: 'Delete',
+      danger: true,
+      icon: '🗑️'
+    });
+    if (!ok) return;
     App.socket.emit('delete_message', { messageId: msgId, roomId: this.activeRoom.id }, (res) => {
       if (res && res.error) App.showToast(res.error);
     });
   },
 
-  editMessagePrompt(msgId) {
+  async editMessagePrompt(msgId) {
     const msgEl = document.getElementById(`msg-${msgId}`);
-    const currentText = msgEl ? msgEl.querySelector('.msg-content p')?.textContent || '' : '';
-    const newText = prompt('Edit your message:', currentText);
-    if (newText !== null && newText.trim() && newText !== currentText) {
+    const currentText = msgEl ? (msgEl.querySelector('.msg-content p')?.textContent || msgEl.querySelector('.msg-content')?.textContent || '') : '';
+    const newText = await App.prompt({
+      title: 'Edit Message',
+      message: 'Update your message content:',
+      defaultValue: currentText.trim(),
+      placeholder: 'Type updated message...',
+      confirmText: 'Save Edit',
+      icon: '✏️'
+    });
+    if (newText !== null && newText.trim() && newText.trim() !== currentText.trim()) {
       App.socket.emit('edit_message', {
         messageId: msgId,
         newContent: newText.trim(),
