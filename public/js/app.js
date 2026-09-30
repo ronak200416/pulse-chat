@@ -962,7 +962,7 @@ const App = {
       name: friend ? (friend.display_name || friend.username) : friendName,
       type: 'direct',
       recipientId: friendId,
-      desc: friend ? (friend.bio || `Direct message with @${friend.username}`) : `Direct message with @${friendName}`
+      desc: friend && friend.bio ? friend.bio : ''
     });
     this.closeMobileDrawer();
   },
@@ -1329,7 +1329,7 @@ const App = {
           name: u.display_name || u.username,
           type: 'direct',
           recipientId: u.id,
-          desc: u.bio || `Direct message with @${u.username}`
+          desc: u.bio || ''
         });
         this.closeMobileDrawer();
       });
@@ -1340,18 +1340,18 @@ const App = {
   async renderRoomMembers() {
     const memberList = document.getElementById('room-member-list');
     const memberCount = document.getElementById('member-count');
+    const customMembersSection = document.getElementById('custom-members-section');
     if (!memberList) return;
 
     this._membersRenderSeq = (this._membersRenderSeq || 0) + 1;
     const currentSeq = this._membersRenderSeq;
 
-    const isChannel = this.currentRoom && this.currentRoom.type === 'channel';
-    const isGeneral = this.currentRoom && (this.currentRoom.id === 'chan_general' || this.currentRoom.name === 'general');
+    const isChannel = this.currentRoom && (this.currentRoom.type === 'channel' || this.currentRoom.type === 'public');
+    const isGeneral = this.currentRoom && (this.currentRoom.id === 'chan_general' || this.currentRoom.id === 'general' || this.currentRoom.name === 'general');
     const isCreator = this.currentRoom && Auth.user && this.currentRoom.created_by === Auth.user.id;
 
-    const customMembersSection = document.getElementById('custom-members-section');
-
-    if (isGeneral) {
+    // Only custom group channels display the MEMBERS section (hidden for General and Direct Messages)
+    if (!isChannel || isGeneral) {
       if (customMembersSection) customMembersSection.style.display = 'none';
       memberList.innerHTML = '';
       this.updateOnlinePresenceCount();
@@ -1360,83 +1360,34 @@ const App = {
 
     if (customMembersSection) customMembersSection.style.display = 'block';
 
-    if (isChannel && !isGeneral) {
-      // ⚡ Fast-Render from Cache if available
-      if (this.membersCache.has(this.currentRoom.id)) {
-        const cached = this.membersCache.get(this.currentRoom.id);
-        if (memberCount) memberCount.textContent = cached.length;
-        this.renderMemberListDOM(cached, memberList, isCreator);
-      }
-
-      try {
-        const res = await fetch(`/api/channels/${this.currentRoom.id}/members`);
-        const data = await res.json();
-        if (currentSeq !== this._membersRenderSeq) return; // Stale parallel call
-
-        const rawMembers = data.members || [];
-        // Strict de-duplication by unique member ID
-        const memberMap = new Map();
-        rawMembers.forEach(u => {
-          if (u && u.id && !memberMap.has(u.id)) {
-            memberMap.set(u.id, u);
-          }
-        });
-        const members = Array.from(memberMap.values());
-        this.membersCache.set(this.currentRoom.id, members);
-
-        if (memberCount) memberCount.textContent = members.length;
-        this.renderMemberListDOM(members, memberList, isCreator);
-        return;
-      } catch (e) {
-        if (currentSeq !== this._membersRenderSeq) return;
-      }
+    // ⚡ Fast-Render from Cache if available
+    if (this.membersCache.has(this.currentRoom.id)) {
+      const cached = this.membersCache.get(this.currentRoom.id);
+      if (memberCount) memberCount.textContent = cached.length;
+      this.renderMemberListDOM(cached, memberList, isCreator);
     }
 
-    // Direct Message view
-    if (this.currentRoom && this.currentRoom.type === 'direct') {
-      const partner = this.friends.find(f => f.id === this.currentRoom.recipientId);
-      if (memberCount) memberCount.textContent = partner ? '2' : '1';
-      memberList.innerHTML = '';
+    try {
+      const res = await fetch(`/api/channels/${this.currentRoom.id}/members`);
+      const data = await res.json();
+      if (currentSeq !== this._membersRenderSeq) return; // Stale parallel call
 
-      if (partner) {
-        const isOnline = this.onlineUserIds.has(partner.id);
-        const partnerItem = document.createElement('div');
-        partnerItem.className = 'member-item';
-        partnerItem.style.cursor = 'pointer';
-        partnerItem.onclick = () => this.openUserProfileModal(partner.id);
-        partnerItem.innerHTML = `
-          <div class="member-avatar" style="background-color:${partner.avatar_color || '#6366f1'}">
-            ${(partner.display_name || partner.username).charAt(0).toUpperCase()}
-          </div>
-          <div style="flex:1;min-width:0;">
-            <div class="member-name">${this.escapeHtml(partner.display_name || partner.username)}</div>
-            <div class="text-xs text-muted">@${this.escapeHtml(partner.username)} • ${isOnline ? 'Online' : 'Offline'}</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span class="status-indicator ${isOnline ? 'online' : 'offline'}"></span>
-            <button class="btn-quick-call" title="Start voice call" onclick="event.stopPropagation(); CallManager.startDirectCall('${partner.id}', '${this.escapeHtml(partner.display_name || partner.username)}', '${partner.avatar_url || ''}', '${partner.avatar_color || '#6366f1'}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>
-          </div>
-        `;
-        memberList.appendChild(partnerItem);
-      }
+      const rawMembers = data.members || [];
+      // Strict de-duplication by unique member ID
+      const memberMap = new Map();
+      rawMembers.forEach(u => {
+        if (u && u.id && !memberMap.has(u.id)) {
+          memberMap.set(u.id, u);
+        }
+      });
+      const members = Array.from(memberMap.values());
+      this.membersCache.set(this.currentRoom.id, members);
 
-      if (Auth.user && (!partner || partner.id !== Auth.user.id)) {
-        const myItem = document.createElement('div');
-        myItem.className = 'member-item';
-        myItem.style.cursor = 'pointer';
-        myItem.onclick = () => this.openUserProfileModal(Auth.user.id);
-        myItem.innerHTML = `
-          <div class="member-avatar" style="background-color:${Auth.user.avatar_color || '#6366f1'}">
-            ${(Auth.user.display_name || Auth.user.username).charAt(0).toUpperCase()}
-          </div>
-          <div style="flex:1;min-width:0;">
-            <div class="member-name">${this.escapeHtml(Auth.user.display_name || Auth.user.username)} (You)</div>
-            <div class="text-xs text-muted">@${this.escapeHtml(Auth.user.username)} • Online</div>
-          </div>
-          <span class="status-indicator online"></span>
-        `;
-        memberList.appendChild(myItem);
-      }
+      if (memberCount) memberCount.textContent = members.length;
+      this.renderMemberListDOM(members, memberList, isCreator);
+      return;
+    } catch (e) {
+      if (currentSeq !== this._membersRenderSeq) return;
     }
   },
 

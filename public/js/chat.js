@@ -211,7 +211,7 @@ const Chat = {
     
     if (iconEl) {
       if (isGeneral) {
-        iconEl.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+        iconEl.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>';
       } else if (isChannel) {
         iconEl.innerHTML = '<span class="room-hash">#</span>';
       } else {
@@ -257,18 +257,34 @@ const Chat = {
     }
 
     if (cdSub) {
-      cdSub.textContent = isGeneral ? 'Public Anonymous Channel' : (isChannel ? 'Private Group Channel' : 'Encrypted Direct Message');
+      if (isGeneral) {
+        cdSub.style.display = 'block';
+        cdSub.textContent = 'Public Anonymous Channel';
+      } else if (isChannel) {
+        cdSub.style.display = 'block';
+        cdSub.textContent = 'Private Group Channel';
+      } else {
+        cdSub.style.display = 'none';
+        cdSub.textContent = '';
+      }
     }
 
     if (cdDesc) {
-      cdDesc.textContent = isGeneral 
-        ? 'Anonymous world chat.'
-        : (room.desc || 'Private messaging space.');
+      if (isGeneral) {
+        cdDesc.style.display = 'block';
+        cdDesc.textContent = 'Anonymous world chat.';
+      } else if (isChannel && room.desc) {
+        cdDesc.style.display = 'block';
+        cdDesc.textContent = room.desc;
+      } else {
+        cdDesc.style.display = 'none';
+        cdDesc.textContent = '';
+      }
     }
 
     if (cdIcon) {
       if (isGeneral) {
-        cdIcon.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+        cdIcon.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>';
       } else if (isChannel) {
         cdIcon.innerHTML = '<span class="room-hash">#</span>';
       } else {
@@ -290,7 +306,7 @@ const Chat = {
     }
 
     if (customMembersSection) {
-      customMembersSection.style.display = isGeneral ? 'none' : 'block';
+      customMembersSection.style.display = (isChannel && !isGeneral) ? 'block' : 'none';
     }
 
     // ⚡ Instant Cache-First Display (0ms Latency)

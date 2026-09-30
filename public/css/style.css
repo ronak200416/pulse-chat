@@ -714,16 +714,9 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
 }
 .general-icon {
   font-size: 1.15rem;
-}
-.general-pulse-dot {
-  position: absolute;
-  bottom: -1px;
-  right: -1px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background-color: var(--accent-success);
-  border: 1.5px solid var(--bg-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .general-info {
   flex: 1;
@@ -1868,11 +1861,19 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
   color: var(--text-secondary);
   margin-top: 2px;
 }
+.cd-sub:empty {
+  display: none !important;
+  margin: 0 !important;
+}
 .cd-desc {
   font-size: 0.82rem;
   color: #cbd5e1;
   line-height: 1.45;
-  margin-top: 12px;
+  margin-top: 10px;
+}
+.cd-desc:empty {
+  display: none !important;
+  margin: 0 !important;
 }
 
 /* Channel Overview Section */
@@ -1894,8 +1895,7 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
   color: var(--text-muted);
 }
 .cd-status-badge {
-  font-size: 0.7rem;
-  color: var(--text-muted);
+  display: none !important;
 }
 .cd-overview-table {
   display: flex;
@@ -1933,7 +1933,7 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
   box-shadow: 0 0 6px rgba(16, 185, 129, 0.8);
 }
 .cd-e2e-val {
-  color: #a78bfa;
+  color: #fff;
 }
 
 /* Security & Policy Card */
