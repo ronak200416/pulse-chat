@@ -1169,10 +1169,37 @@ const App = {
   },
 
   updateOnlinePresenceCount(explicitCount) {
-    const count = typeof explicitCount === 'number' ? explicitCount : (this.onlineUserIds ? this.onlineUserIds.size : 1);
     const countEl = document.getElementById('overview-online-count');
-    if (countEl) {
+    if (!countEl) return;
+
+    const isGeneral = !this.currentRoom || this.currentRoom.id === 'chan_general' || this.currentRoom.id === 'general' || this.currentRoom.name === 'general';
+    const isChannel = this.currentRoom && (this.currentRoom.type === 'channel' || this.currentRoom.type === 'public');
+
+    if (isGeneral) {
+      // In General Chat: show total online users across the entire app
+      const count = typeof explicitCount === 'number' 
+        ? explicitCount 
+        : (this.onlineUserIds ? Math.max(this.onlineUserIds.size, 1) : 1);
       countEl.textContent = `${count} active`;
+    } else if (isChannel && !isGeneral) {
+      // In a Custom Group: calculate online members strictly within this group
+      if (this.membersCache && this.membersCache.has(this.currentRoom.id)) {
+        const members = this.membersCache.get(this.currentRoom.id) || [];
+        let groupOnlineCount = 0;
+        members.forEach(m => {
+          if (this.onlineUserIds && this.onlineUserIds.has(m.id)) {
+            groupOnlineCount++;
+          } else if (Auth.user && m.id === Auth.user.id) {
+            groupOnlineCount++;
+          }
+        });
+        const finalCount = Math.min(groupOnlineCount || 1, members.length || 1);
+        countEl.textContent = `${finalCount} active`;
+      } else {
+        countEl.textContent = `1 active`;
+      }
+    } else {
+      countEl.textContent = `1 active`;
     }
   },
 
@@ -1365,6 +1392,7 @@ const App = {
       const cached = this.membersCache.get(this.currentRoom.id);
       if (memberCount) memberCount.textContent = cached.length;
       this.renderMemberListDOM(cached, memberList, isCreator);
+      this.updateOnlinePresenceCount();
     }
 
     try {
@@ -1385,6 +1413,7 @@ const App = {
 
       if (memberCount) memberCount.textContent = members.length;
       this.renderMemberListDOM(members, memberList, isCreator);
+      this.updateOnlinePresenceCount();
       return;
     } catch (e) {
       if (currentSeq !== this._membersRenderSeq) return;

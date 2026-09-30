@@ -299,9 +299,8 @@ const Chat = {
       cdPrivacy.textContent = isGeneral ? 'Public' : (isChannel ? 'Private Group' : 'Direct');
     }
 
-    if (onlineCountEl) {
-      const activeCount = App.onlineUserIds ? App.onlineUserIds.size : 1;
-      onlineCountEl.textContent = `${activeCount} active`;
+    if (typeof App !== 'undefined' && App.updateOnlinePresenceCount) {
+      App.updateOnlinePresenceCount();
     }
 
     if (secSection) {
