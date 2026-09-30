@@ -804,12 +804,15 @@ const Chat = {
 
   scrollToBottom(smooth = true) {
     if (!this.messagesContainer) return;
-    const scrollHeight = this.messagesContainer.scrollHeight;
-    if (smooth) {
-      this.messagesContainer.scrollTo({ top: scrollHeight, behavior: 'smooth' });
-    } else {
-      this.messagesContainer.scrollTop = scrollHeight;
-    }
+    requestAnimationFrame(() => {
+      if (!this.messagesContainer) return;
+      const scrollHeight = this.messagesContainer.scrollHeight;
+      if (smooth) {
+        this.messagesContainer.scrollTo({ top: scrollHeight, behavior: 'smooth' });
+      } else {
+        this.messagesContainer.scrollTop = scrollHeight;
+      }
+    });
   },
 
   formatMarkdown(text) {

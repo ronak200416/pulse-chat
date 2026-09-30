@@ -78,6 +78,8 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
+  scroll-behavior: smooth;
+  text-rendering: optimizeLegibility;
 }
 
 .app-shell {
@@ -87,9 +89,15 @@ html, body {
   display: flex;
   overflow: hidden;
   position: relative;
+  transform: translateZ(0);
 }
 
 /* Custom Scrollbars */
+.custom-scroll {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
 .custom-scroll::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -98,11 +106,12 @@ html, body {
   background: transparent;
 }
 .custom-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-full);
+  transition: background 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .custom-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.3);
 }
 
 /* Utilities & Typography */
@@ -249,14 +258,16 @@ html, body {
   inset: 0;
   background: rgba(4, 7, 13, 0.85);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.25s ease;
+  transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   padding: 16px;
+  will-change: opacity;
 }
 .modal-overlay.active {
   opacity: 1;
@@ -271,10 +282,12 @@ html, body {
   max-width: 460px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 40px rgba(99, 102, 241, 0.1);
   overflow: hidden;
-  animation: modal-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  animation: modal-enter 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes modal-enter {
-  from { opacity: 0; transform: scale(0.94) translateY(10px); }
+  from { opacity: 0; transform: scale(0.95) translateY(12px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
@@ -1176,10 +1189,12 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
   padding: 6px 10px;
   border-radius: var(--radius-md);
   position: relative;
-  transition: background 0.15s;
+  transition: background 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  contain: layout style;
+  transform: translateZ(0);
 }
 .message-item:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(255, 255, 255, 0.025);
 }
 .message-item:hover .message-action-bar {
   opacity: 1;

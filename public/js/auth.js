@@ -21,7 +21,6 @@ const Auth = {
     // Registration UI Elements
     this.regUsernameInput = document.getElementById('reg-username');
     this.regDisplayNameInput = document.getElementById('reg-display-name');
-    this.regBioInput = document.getElementById('reg-bio');
     this.usernameStatusEl = document.getElementById('username-availability-status');
     this.regColorPicker = document.getElementById('reg-color-picker');
     this.loginColorPicker = document.getElementById('login-color-picker');
@@ -31,7 +30,6 @@ const Auth = {
     this.previewAvatar = document.getElementById('preview-avatar');
     this.previewDisplayName = document.getElementById('preview-display-name');
     this.previewHandle = document.getElementById('preview-handle');
-    this.previewBio = document.getElementById('preview-bio');
 
     // Profile Modal
     this.profileModal = document.getElementById('profile-modal');
@@ -70,16 +68,12 @@ const Auth = {
   updateLivePreview() {
     const username = this.regUsernameInput ? this.regUsernameInput.value.trim() : '';
     const displayName = this.regDisplayNameInput ? this.regDisplayNameInput.value.trim() : '';
-    const bio = this.regBioInput ? this.regBioInput.value.trim() : '';
 
     if (this.previewDisplayName) {
       this.previewDisplayName.textContent = displayName || username || 'Ronak Mishra';
     }
     if (this.previewHandle) {
       this.previewHandle.textContent = `@${username || 'ronak_dev'}`;
-    }
-    if (this.previewBio) {
-      this.previewBio.textContent = bio ? `"${bio}"` : '"Building aesthetic interfaces with modern precision."';
     }
     if (this.previewAvatar) {
       const initial = (displayName || username || 'R').charAt(0).toUpperCase();
@@ -136,9 +130,6 @@ const Auth = {
     }
     if (this.regDisplayNameInput) {
       this.regDisplayNameInput.addEventListener('input', () => this.updateLivePreview());
-    }
-    if (this.regBioInput) {
-      this.regBioInput.addEventListener('input', () => this.updateLivePreview());
     }
 
     // Login color dot picker
@@ -293,7 +284,6 @@ const Auth = {
         const username = document.getElementById('reg-username').value.trim();
         const displayName = document.getElementById('reg-display-name').value.trim();
         const password = document.getElementById('reg-password').value;
-        const bio = document.getElementById('reg-bio').value.trim();
         const errEl = document.getElementById('reg-error');
         const submitBtn = document.getElementById('btn-reg-submit');
 
@@ -319,7 +309,6 @@ const Auth = {
               username,
               display_name: displayName || username,
               password,
-              bio,
               avatar_color: this.selectedRegColor
             })
           });
@@ -377,9 +366,7 @@ const Auth = {
     const handleProfileSubmit = async (e) => {
       if (e) e.preventDefault();
       const nameInput = document.getElementById('edit-display-name');
-      const bioInput = document.getElementById('edit-bio');
       const displayName = nameInput ? nameInput.value.trim() : '';
-      const bio = bioInput ? bioInput.value.trim() : '';
       const submitBtn = document.getElementById('btn-save-profile') || (this.profileForm ? this.profileForm.querySelector('button[type="submit"]') : null);
 
       if (!displayName) {
@@ -411,7 +398,6 @@ const Auth = {
           },
           body: JSON.stringify({
             display_name: displayName,
-            bio: bio,
             avatar_color: activeColor
           })
         });
@@ -521,9 +507,7 @@ const Auth = {
   openProfileModal() {
     if (!this.user || !this.profileModal) return;
     const nameInput = document.getElementById('edit-display-name');
-    const bioInput = document.getElementById('edit-bio');
     if (nameInput) nameInput.value = this.user.display_name || '';
-    if (bioInput) bioInput.value = this.user.bio || '';
     this.selectedEditColor = this.user.avatar_color || '#6366f1';
 
     const colorNameEl = document.getElementById('edit-color-name');
