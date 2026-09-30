@@ -1075,6 +1075,37 @@ const App = {
       this.renderRoomMembers();
     });
 
+    this.socket.on('user_profile_updated', (updatedUser) => {
+      if (!updatedUser || !updatedUser.id) return;
+      if (Array.isArray(this.users)) {
+        const idx = this.users.findIndex(u => u.id === updatedUser.id);
+        if (idx !== -1) {
+          this.users[idx] = { ...this.users[idx], ...updatedUser };
+        } else {
+          this.users.push(updatedUser);
+        }
+      }
+      if (Array.isArray(this.friends)) {
+        const fIdx = this.friends.findIndex(f => f.id === updatedUser.id);
+        if (fIdx !== -1) {
+          this.friends[fIdx] = { ...this.friends[fIdx], ...updatedUser };
+          this.renderDirectMessagesList();
+        }
+      }
+      if (Auth.user && Auth.user.id === updatedUser.id) {
+        Auth.user = { ...Auth.user, ...updatedUser };
+        Auth.updateUserUI();
+      }
+      this.renderRoomMembers();
+      if (this.currentRoom && this.currentRoom.type === 'direct' && this.currentRoom.recipientId === updatedUser.id) {
+        this.currentRoom.name = updatedUser.display_name || updatedUser.username;
+        if (window.Chat) {
+          Chat.updateHeaderUI();
+          Chat.updateDetailsPanel();
+        }
+      }
+    });
+
     this.socket.on('channel_created', (channel) => {
       const isCreator = Auth.user && channel.created_by === Auth.user.id;
       const isMember = Auth.user && Array.isArray(channel.member_ids) && channel.member_ids.includes(Auth.user.id);

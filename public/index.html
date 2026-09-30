@@ -558,27 +558,29 @@
         <button class="icon-btn-xs modal-close-btn" id="btn-close-create-channel">✕</button>
       </div>
       <form id="create-channel-form">
-        <div class="form-group">
-          <label for="new-channel-name">Group / Channel Name</label>
-          <div class="input-icon-wrap">
-            <span class="input-icon">#</span>
-            <input type="text" id="new-channel-name" placeholder="team-project" required maxlength="30">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="new-channel-name">Group / Channel Name</label>
+            <div class="input-icon-wrap">
+              <span class="input-icon">#</span>
+              <input type="text" id="new-channel-name" placeholder="team-project" required maxlength="30">
+            </div>
           </div>
-        </div>
-        <div class="form-group">
-          <label for="new-channel-icon">Group Icon (Emoji)</label>
-          <input type="text" id="new-channel-icon" value="#" maxlength="4" style="font-size:1.2rem; text-align:center; width: 60px;">
-        </div>
-        <div class="form-group">
-          <label for="new-channel-desc">Description (Optional)</label>
-          <input type="text" id="new-channel-desc" placeholder="What is this group for?">
-        </div>
+          <div class="form-group">
+            <label for="new-channel-icon">Group Icon (Emoji)</label>
+            <input type="text" id="new-channel-icon" value="#" maxlength="4" style="font-size:1.2rem; text-align:center; width: 60px;">
+          </div>
+          <div class="form-group">
+            <label for="new-channel-desc">Description (Optional)</label>
+            <input type="text" id="new-channel-desc" placeholder="What is this group for?">
+          </div>
 
-        <!-- Member Selection Checkbox List -->
-        <div class="form-group">
-          <label>Select Members to Add into this Group</label>
-          <div class="member-select-list custom-scroll" id="create-group-member-list">
-            <div class="text-xs text-muted" style="padding:8px;">Loading users...</div>
+          <!-- Member Selection Checkbox List -->
+          <div class="form-group">
+            <label>Select Members to Add into this Group</label>
+            <div class="member-select-list custom-scroll" id="create-group-member-list">
+              <div class="text-xs text-muted" style="padding:8px;">Loading users...</div>
+            </div>
           </div>
         </div>
 
@@ -598,24 +600,27 @@
         <button class="icon-btn-xs modal-close-btn" id="btn-close-profile-modal">✕</button>
       </div>
       <form id="profile-form">
-        <div class="form-group">
-          <label for="edit-display-name">Display Name</label>
-          <input type="text" id="edit-display-name" required maxlength="30">
-        </div>
-        <div class="form-group">
-          <label for="edit-bio">Bio / Status</label>
-          <input type="text" id="edit-bio" placeholder="What are you working on?" maxlength="120">
-        </div>
-        <div class="form-group">
-          <label>Avatar Color</label>
-          <div class="color-picker-row" id="edit-color-picker">
-            <button type="button" class="color-dot" data-color="#6366f1" style="background:#6366f1"></button>
-            <button type="button" class="color-dot" data-color="#ec4899" style="background:#ec4899"></button>
-            <button type="button" class="color-dot" data-color="#8b5cf6" style="background:#8b5cf6"></button>
-            <button type="button" class="color-dot" data-color="#10b981" style="background:#10b981"></button>
-            <button type="button" class="color-dot" data-color="#f59e0b" style="background:#f59e0b"></button>
-            <button type="button" class="color-dot" data-color="#06b6d4" style="background:#06b6d4"></button>
-            <button type="button" class="color-dot" data-color="#e11d48" style="background:#e11d48"></button>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="edit-display-name">Display Name</label>
+            <input type="text" id="edit-display-name" required maxlength="30">
+          </div>
+          <div class="form-group">
+            <label for="edit-bio">Bio / Status</label>
+            <input type="text" id="edit-bio" placeholder="What are you working on?" maxlength="120">
+          </div>
+          <div class="form-group">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <label style="margin:0;">Avatar & Accent Color</label>
+              <span id="edit-color-name" style="font-size:0.78rem; font-weight:600; color:#94a3b8;">Indigo Pulse</span>
+            </div>
+            <div class="color-picker-row" id="edit-color-picker">
+              <button type="button" class="color-dot active" data-color="#6366f1" data-name="Indigo Pulse" title="Indigo Pulse" style="background:#6366f1;"></button>
+              <button type="button" class="color-dot" data-color="#10b981" data-name="Emerald Mint" title="Emerald Mint" style="background:#10b981;"></button>
+              <button type="button" class="color-dot" data-color="#a855f7" data-name="Cyber Violet" title="Cyber Violet" style="background:#a855f7;"></button>
+              <button type="button" class="color-dot" data-color="#f59e0b" data-name="Amber Gold" title="Amber Gold" style="background:#f59e0b;"></button>
+              <button type="button" class="color-dot" data-color="#e2e8f0" data-name="Mono Classic" title="Mono Classic" style="background:#e2e8f0;"></button>
+            </div>
           </div>
         </div>
         <div class="modal-footer">

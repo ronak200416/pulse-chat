@@ -239,10 +239,15 @@ const Auth = {
     // Edit profile color picker
     if (this.editColorPicker) {
       this.editColorPicker.addEventListener('click', (e) => {
-        if (e.target.classList.contains('color-dot')) {
+        const dot = e.target.closest('.color-dot');
+        if (dot) {
           this.editColorPicker.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
-          e.target.classList.add('active');
-          this.selectedEditColor = e.target.getAttribute('data-color');
+          dot.classList.add('active');
+          this.selectedEditColor = dot.getAttribute('data-color');
+          const nameEl = document.getElementById('edit-color-name');
+          if (nameEl) {
+            nameEl.textContent = dot.getAttribute('data-name') || '';
+          }
         }
       });
     }
@@ -338,7 +343,18 @@ const Auth = {
     // Profile Settings Trigger
     const btnEditProfile = document.getElementById('btn-edit-profile');
     if (btnEditProfile) {
-      btnEditProfile.addEventListener('click', () => this.openProfileModal());
+      btnEditProfile.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.openProfileModal();
+      });
+    }
+
+    const userProfileWidget = document.getElementById('user-profile-widget');
+    if (userProfileWidget) {
+      userProfileWidget.addEventListener('click', (e) => {
+        if (e.target.closest('#btn-logout') || e.target.closest('#btn-edit-profile')) return;
+        this.openProfileModal();
+      });
     }
 
     const btnCloseProfile = document.getElementById('btn-close-profile-modal');
@@ -346,12 +362,25 @@ const Auth = {
     if (btnCloseProfile) btnCloseProfile.addEventListener('click', () => this.closeProfileModal());
     if (btnCancelProfile) btnCancelProfile.addEventListener('click', () => this.closeProfileModal());
 
+    if (this.profileModal) {
+      this.profileModal.addEventListener('click', (e) => {
+        if (e.target === this.profileModal) this.closeProfileModal();
+      });
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.profileModal && this.profileModal.classList.contains('active')) {
+        this.closeProfileModal();
+      }
+    });
+
     // Submit Profile Update
     if (this.profileForm) {
       this.profileForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const displayName = document.getElementById('edit-display-name').value.trim();
         const bio = document.getElementById('edit-bio').value.trim();
+        const submitBtn = this.profileForm.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
 
         try {
           const res = await fetch('/api/users/profile', {
@@ -370,11 +399,25 @@ const Auth = {
           if (data.user) {
             this.user = data.user;
             this.updateUserUI();
+            if (window.App) {
+              if (Array.isArray(App.users)) {
+                const idx = App.users.findIndex(u => u.id === data.user.id);
+                if (idx !== -1) App.users[idx] = { ...App.users[idx], ...data.user };
+              }
+              if (Array.isArray(App.friends)) {
+                const fIdx = App.friends.findIndex(f => f.id === data.user.id);
+                if (fIdx !== -1) App.friends[fIdx] = { ...App.friends[fIdx], ...data.user };
+              }
+              App.showToast('Profile updated successfully!');
+            }
             this.closeProfileModal();
-            App.showToast('Profile updated!');
+          } else if (data.error) {
+            if (window.App) App.showToast(data.error);
           }
         } catch (err) {
-          App.showToast('Failed to update profile');
+          if (window.App) App.showToast('Failed to update profile');
+        } finally {
+          if (submitBtn) submitBtn.disabled = false;
         }
       });
     }
@@ -442,17 +485,35 @@ const Auth = {
 
   openProfileModal() {
     if (!this.user || !this.profileModal) return;
-    document.getElementById('edit-display-name').value = this.user.display_name || '';
-    document.getElementById('edit-bio').value = this.user.bio || '';
+    const nameInput = document.getElementById('edit-display-name');
+    const bioInput = document.getElementById('edit-bio');
+    if (nameInput) nameInput.value = this.user.display_name || '';
+    if (bioInput) bioInput.value = this.user.bio || '';
     this.selectedEditColor = this.user.avatar_color || '#6366f1';
 
+    const colorNameEl = document.getElementById('edit-color-name');
     if (this.editColorPicker) {
+      let matchedDot = null;
       this.editColorPicker.querySelectorAll('.color-dot').forEach(dot => {
-        dot.classList.toggle('active', dot.getAttribute('data-color') === this.selectedEditColor);
+        const isMatch = dot.getAttribute('data-color') === this.selectedEditColor;
+        dot.classList.toggle('active', isMatch);
+        if (isMatch) matchedDot = dot;
       });
+      if (!matchedDot) {
+        const firstDot = this.editColorPicker.querySelector('.color-dot');
+        if (firstDot) {
+          firstDot.classList.add('active');
+          this.selectedEditColor = firstDot.getAttribute('data-color');
+          matchedDot = firstDot;
+        }
+      }
+      if (colorNameEl && matchedDot) {
+        colorNameEl.textContent = matchedDot.getAttribute('data-name') || 'Indigo Pulse';
+      }
     }
 
     this.profileModal.classList.add('active');
+    if (nameInput) nameInput.focus();
   },
 
   closeProfileModal() {

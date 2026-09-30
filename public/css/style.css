@@ -476,22 +476,29 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
 
 .color-picker-row {
   display: flex;
-  gap: 10px;
-  padding: 4px 0;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
 }
 .color-dot {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   border: 2px solid transparent;
   cursor: pointer;
-  transition: transform 0.2s;
+  outline: none;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
-.color-dot:hover { transform: scale(1.15); }
-.color-dot.active {
-  border-color: #fff;
+.color-dot:hover {
   transform: scale(1.15);
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+.color-dot.active {
+  border-color: #ffffff;
+  transform: scale(1.18);
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.6), 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
 .error-msg {
