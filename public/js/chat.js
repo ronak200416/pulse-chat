@@ -206,11 +206,11 @@ const Chat = {
     const tagEl = document.getElementById('current-room-tag');
 
     if (titleEl) titleEl.textContent = isChannel ? (isGeneral ? 'General' : `#${room.name}`) : room.name;
-    if (descEl) descEl.textContent = isGeneral ? 'Global community chat for everyone' : (room.desc || (isChannel ? 'Group conversation' : 'Direct message'));
+    if (descEl) descEl.textContent = isGeneral ? 'Anonymous world chat' : (room.desc || (isChannel ? 'Group conversation' : 'Direct message'));
     if (iconEl) iconEl.textContent = room.icon || (isChannel ? '💬' : '👤');
     if (tagEl) tagEl.textContent = isChannel ? 'Channel' : 'Direct Message';
 
-    // Update Right Sidebar (Matches Image 1)
+    // Update Right Sidebar
     const rightTitle = document.getElementById('right-sidebar-title');
     const rightSub = document.getElementById('right-sidebar-subtitle');
     const cdName = document.getElementById('cd-name');
@@ -221,6 +221,7 @@ const Chat = {
     const cdPrivacy = document.getElementById('cd-privacy-val');
     const onlineCountEl = document.getElementById('overview-online-count');
     const secSection = document.getElementById('security-policy-section');
+    const generalPrivacySec = document.getElementById('general-privacy-section');
     const customMembersSection = document.getElementById('custom-members-section');
 
     if (rightTitle) rightTitle.textContent = isGeneral ? 'General' : (isChannel ? `#${room.name}` : room.name);
@@ -229,7 +230,7 @@ const Chat = {
     
     if (cdBadge) {
       if (isGeneral) {
-        cdBadge.textContent = 'GLOBAL';
+        cdBadge.textContent = 'PUBLIC';
         cdBadge.style.display = 'inline-block';
       } else if (isChannel) {
         cdBadge.textContent = 'GROUP';
@@ -241,12 +242,12 @@ const Chat = {
     }
 
     if (cdSub) {
-      cdSub.textContent = isGeneral ? 'Public Community Channel' : (isChannel ? 'Private Group Channel' : 'Encrypted Direct Message');
+      cdSub.textContent = isGeneral ? 'Public Anonymous Channel' : (isChannel ? 'Private Group Channel' : 'Encrypted Direct Message');
     }
 
     if (cdDesc) {
       cdDesc.textContent = isGeneral 
-        ? 'Town square for everyone. Hang out and chat with the community.'
+        ? 'Anonymous world chat. Safe and open public space with masked identities.'
         : (room.desc || 'Private messaging space.');
     }
 
@@ -263,8 +264,12 @@ const Chat = {
       secSection.style.display = 'none';
     }
 
+    if (generalPrivacySec) {
+      generalPrivacySec.style.display = isGeneral ? 'block' : 'none';
+    }
+
     if (customMembersSection) {
-      customMembersSection.style.display = 'block';
+      customMembersSection.style.display = isGeneral ? 'none' : 'block';
     }
 
     // Fetch messages from SQLite
@@ -288,10 +293,10 @@ const Chat = {
     if (this.activeRoom) {
       const isGeneral = this.activeRoom.id === 'chan_general' || (this.activeRoom.name && this.activeRoom.name.toLowerCase() === 'general');
       if (welcomeTitle) {
-        welcomeTitle.textContent = isGeneral ? 'Welcome to General!' : (this.activeRoom.type === 'channel' ? `Welcome to #${this.activeRoom.name}!` : `Conversation with ${this.activeRoom.name}`);
+        welcomeTitle.textContent = isGeneral ? 'Anonymous World Chat' : (this.activeRoom.type === 'channel' ? `Welcome to #${this.activeRoom.name}!` : `Conversation with ${this.activeRoom.name}`);
       }
       if (welcomeDesc) {
-        welcomeDesc.textContent = isGeneral ? 'The town square — hang out, chat and say hello to everyone!' : (this.activeRoom.desc || 'Send your first message to get started.');
+        welcomeDesc.textContent = isGeneral ? 'Anonymous world chat — open public conversation with privacy protection.' : (this.activeRoom.desc || 'Send your first message to get started.');
       }
     }
 
@@ -324,17 +329,25 @@ const Chat = {
 
     const timeStr = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const isMe = Auth.user && Auth.user.id === msg.sender_id;
+    const isGeneral = this.activeRoom && (this.activeRoom.id === 'chan_general' || (this.activeRoom.name && this.activeRoom.name.toLowerCase() === 'general'));
 
     let senderName = msg.sender_display_name || msg.sender_username || 'User';
     let avatarBg = msg.sender_avatar_color || '#6366f1';
     let initial = senderName.charAt(0).toUpperCase();
 
+    if (isGeneral) {
+      senderName = isMe ? 'Anonymous (You)' : 'Anonymous';
+      avatarBg = isMe ? '#475569' : '#334155';
+      initial = '🕶️';
+    }
+
     // Reply Bubble if quoting
     let replyHtml = '';
     if (msg.reply_to_id && msg.reply_to_sender) {
+      const quoteSenderDisplay = isGeneral ? 'Anonymous' : msg.reply_to_sender;
       replyHtml = `
         <div class="reply-ref">
-          <span class="reply-ref-name">↪ ${this.escapeHtml(msg.reply_to_sender)}:</span>
+          <span class="reply-ref-name">↪ ${this.escapeHtml(quoteSenderDisplay)}:</span>
           <span class="reply-ref-text">${this.escapeHtml(msg.reply_to_content || '')}</span>
         </div>
       `;
@@ -382,7 +395,7 @@ const Chat = {
     const reactionsHtml = this.renderReactionsHtml(msg.reactions || [], msg.id);
 
     // Action Bar HTML
-    const quoteSender = msg.sender_display_name || msg.sender_username;
+    const quoteSender = isGeneral ? 'Anonymous' : (msg.sender_display_name || msg.sender_username);
     const actionBarHtml = `
       <div class="message-action-bar">
         <button class="icon-btn-xs" title="React" onclick="Chat.showQuickReaction('${msg.id}')">😊</button>
@@ -393,10 +406,10 @@ const Chat = {
     `;
 
     el.innerHTML = `
-      <div class="msg-avatar" style="background-color:${avatarBg}">${initial}</div>
+      <div class="msg-avatar" style="background:${avatarBg}; ${isGeneral ? 'font-size:1.1rem;display:flex;align-items:center;justify-content:center;' : ''}">${initial}</div>
       <div class="msg-body">
         <div class="msg-header">
-          <span class="msg-sender">${this.escapeHtml(senderName)}</span>
+          <span class="msg-sender ${isGeneral ? 'text-anon' : ''}">${this.escapeHtml(senderName)}</span>
           <span class="msg-timestamp">${timeStr}</span>
           ${msg.is_edited ? '<span class="msg-edited-tag">(edited)</span>' : ''}
         </div>

@@ -230,7 +230,7 @@ class DatabaseService {
 
   async seedDefaultChannelsTurso() {
     const defaults = [
-      { id: 'chan_general', name: 'General', description: 'The town square - hang out, chat and say hello to everyone!', icon: '💬' }
+      { id: 'chan_general', name: 'General', description: 'Anonymous world chat', icon: '💬' }
     ];
 
     for (const c of defaults) {
@@ -239,7 +239,7 @@ class DatabaseService {
         args: [c.id, c.name, c.description, c.icon, Date.now()]
       });
       await this.tursoClient.execute({
-        sql: "UPDATE channels SET name = 'General' WHERE id = 'chan_general'",
+        sql: "UPDATE channels SET name = 'General', description = 'Anonymous world chat', icon = '💬' WHERE id = 'chan_general'",
         args: []
       });
     }
@@ -350,7 +350,7 @@ class DatabaseService {
 
   seedDefaultChannelsLocal() {
     const defaults = [
-      { id: 'chan_general', name: 'General', description: 'The town square - hang out, chat and say hello to everyone!', icon: '💬' }
+      { id: 'chan_general', name: 'General', description: 'Anonymous world chat', icon: '💬' }
     ];
 
     for (const c of defaults) {
@@ -366,7 +366,7 @@ class DatabaseService {
         );
       }
       try {
-        this.db.run("UPDATE channels SET name = 'General' WHERE id = 'chan_general'");
+        this.db.run("UPDATE channels SET name = 'General', description = 'Anonymous world chat', icon = '💬' WHERE id = 'chan_general'");
       } catch (e) {}
     }
   }

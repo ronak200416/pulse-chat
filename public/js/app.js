@@ -1180,7 +1180,7 @@ const App = {
       name: 'General',
       type: 'channel',
       icon: '💬',
-      desc: 'Global community chat for everyone',
+      desc: 'Anonymous world chat',
       created_by: 'system'
     };
     this.selectRoom({
@@ -1188,7 +1188,7 @@ const App = {
       name: 'General',
       type: 'channel',
       icon: general.icon || '💬',
-      desc: 'Global community chat for everyone',
+      desc: 'Anonymous world chat',
       created_by: general.created_by || 'system'
     });
   },
@@ -1350,57 +1350,19 @@ const App = {
     const isGeneral = this.currentRoom && (this.currentRoom.id === 'chan_general' || this.currentRoom.name === 'general');
     const isCreator = this.currentRoom && Auth.user && this.currentRoom.created_by === Auth.user.id;
 
+    const generalPrivacySec = document.getElementById('general-privacy-section');
+    const customMembersSection = document.getElementById('custom-members-section');
+
     if (isGeneral) {
-      try {
-        const res = await fetch('/api/users');
-        const data = await res.json();
-        if (currentSeq !== this._membersRenderSeq) return; // Stale parallel call
-
-        const rawUsers = data.users || [];
-        // Strict de-duplication by unique user ID
-        const userMap = new Map();
-        rawUsers.forEach(u => {
-          if (u && u.id && !userMap.has(u.id)) {
-            userMap.set(u.id, u);
-          }
-        });
-        const users = Array.from(userMap.values());
-
-        if (memberCount) memberCount.textContent = users.length;
-        memberList.innerHTML = '';
-
-        users.forEach(u => {
-          const isOnline = this.onlineUserIds.has(u.id);
-          const isSelf = Auth.user && u.id === Auth.user.id;
-          const isFriend = this.friends.some(f => f.id === u.id);
-          const item = document.createElement('div');
-          item.className = 'member-item';
-          item.style.cursor = 'pointer';
-          item.title = `Click to view @${u.username}'s profile`;
-          item.onclick = () => this.openUserProfileModal(u.id);
-
-          item.innerHTML = `
-            <div class="member-avatar" style="background-color:${u.avatar_color || '#6366f1'}">
-              ${(u.display_name || u.username).charAt(0).toUpperCase()}
-            </div>
-            <div style="flex:1;min-width:0;">
-              <div class="member-name">
-                ${this.escapeHtml(u.display_name || u.username)} ${isSelf ? '<span class="text-xs text-muted">(You)</span>' : ''}
-              </div>
-              <div class="text-xs text-muted">@${this.escapeHtml(u.username)} • ${isOnline ? 'Online' : 'Offline'}</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:6px;">
-              <span class="status-indicator ${isOnline ? 'online' : 'offline'}"></span>
-              ${!isSelf && !isFriend ? `<button class="btn-quick-add" title="Add as friend" onclick="event.stopPropagation(); App.sendFriendRequest('${u.username}')">+</button>` : ''}
-            </div>
-          `;
-          memberList.appendChild(item);
-        });
-        return;
-      } catch (e) {
-        if (currentSeq !== this._membersRenderSeq) return;
-      }
+      if (generalPrivacySec) generalPrivacySec.style.display = 'block';
+      if (customMembersSection) customMembersSection.style.display = 'none';
+      memberList.innerHTML = '';
+      this.updateOnlinePresenceCount();
+      return;
     }
+
+    if (generalPrivacySec) generalPrivacySec.style.display = 'none';
+    if (customMembersSection) customMembersSection.style.display = 'block';
 
     if (isChannel && !isGeneral) {
       try {
@@ -1576,8 +1538,12 @@ const App = {
     // Header voice call buttons toggle
     const btnCall = document.getElementById('btn-header-call');
     const btnVoice = document.getElementById('btn-header-join-voice');
+    const isGeneral = room && (room.id === 'chan_general' || (room.name && room.name.toLowerCase() === 'general'));
     if (room.type === 'direct') {
       if (btnCall) btnCall.style.display = 'inline-flex';
+      if (btnVoice) btnVoice.style.display = 'none';
+    } else if (isGeneral) {
+      if (btnCall) btnCall.style.display = 'none';
       if (btnVoice) btnVoice.style.display = 'none';
     } else {
       if (btnCall) btnCall.style.display = 'none';

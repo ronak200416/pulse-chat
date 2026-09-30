@@ -283,19 +283,19 @@
         <!-- Pinned General Chat Section -->
         <div class="nav-section nav-section-pinned">
           <div class="nav-section-header">
-            <span class="nav-section-title">COMMUNITY CHAT</span>
+            <span class="nav-section-title">PUBLIC WORLD CHAT</span>
           </div>
-          <div class="general-chat-card active" id="btn-general-chat" role="button" tabindex="0" title="Switch to General Chat">
+          <div class="general-chat-card active" id="btn-general-chat" role="button" tabindex="0" title="Switch to Anonymous World Chat">
             <div class="general-icon-wrap">
-              <span class="general-icon">🌐</span>
+              <span class="general-icon">💬</span>
               <span class="general-pulse-dot"></span>
             </div>
             <div class="general-info">
               <div class="general-title-row">
                 <span class="general-name">General</span>
-                <span class="general-global-badge">GLOBAL</span>
+                <span class="general-global-badge">PUBLIC</span>
               </div>
-              <span class="general-desc">Town square for everyone</span>
+              <span class="general-desc">Anonymous world chat</span>
             </div>
           </div>
         </div>
@@ -367,7 +367,7 @@
               <h2 id="current-room-title">General</h2>
               <span class="room-type-tag" id="current-room-tag">Channel</span>
             </div>
-            <p class="room-subtitle" id="current-room-desc">Global community chat for everyone</p>
+            <p class="room-subtitle" id="current-room-desc">Anonymous world chat</p>
           </div>
         </div>
 
@@ -422,13 +422,13 @@
 
       <!-- Messages Feed Container -->
       <div class="messages-container custom-scroll" id="messages-container">
-        <!-- Center Welcome Card (Matches Image 1) -->
+        <!-- Center Welcome Card -->
         <div class="chat-welcome-banner" id="chat-welcome-banner">
           <div class="welcome-icon-box">
             <span class="welcome-icon">💬</span>
           </div>
-          <h3 id="welcome-title">Welcome to General!</h3>
-          <p id="welcome-desc">The town square — hang out, chat and say hello to everyone!</p>
+          <h3 id="welcome-title">Anonymous World Chat</h3>
+          <p id="welcome-desc">Anonymous world chat — open public conversation with privacy protection.</p>
         </div>
 
         <div class="messages-feed" id="messages-feed">
@@ -462,29 +462,12 @@
           <button class="icon-btn-xs" id="btn-cancel-reply" title="Cancel reply">✕</button>
         </div>
 
-        <!-- Voice Recording Live Bar -->
-        <div class="voice-recording-bar" id="voice-recording-bar" style="display:none;">
-          <div class="voice-rec-status">
-            <span class="rec-dot"></span>
-            <span class="rec-time" id="voice-rec-time">0:00</span>
-            <span class="rec-label">Recording voice note...</span>
-          </div>
-          <div class="voice-rec-actions">
-            <button class="btn btn-sm btn-danger" id="btn-cancel-voice">Cancel</button>
-            <button class="btn btn-sm btn-primary" id="btn-send-voice">Send Voice Note 🚀</button>
-          </div>
-        </div>
-
-        <!-- Standard Input Area -->
+        <!-- Standard Input Area (Clean & Modern, No Mic Button) -->
         <div class="composer-box" id="composer-box">
           <input type="file" id="file-input" style="display:none;" accept="image/*,audio/*,video/*,.pdf,.zip,.txt,.doc,.docx,.json">
           
           <button class="composer-action-btn" id="btn-attachment" title="Attach file, image or clip">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-          </button>
-
-          <button class="composer-action-btn" id="btn-voice-record" title="Record Voice Note">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
           </button>
 
           <div class="textarea-wrapper">
@@ -512,7 +495,7 @@
       </footer>
     </main>
 
-    <!-- RIGHT SIDEBAR (CHANNEL DETAILS MATCHING IMAGE 1) -->
+    <!-- RIGHT SIDEBAR (CHANNEL DETAILS & PRIVACY) -->
     <aside id="app-right-sidebar" class="app-right-sidebar">
       <div class="right-sidebar-header">
         <div class="right-header-title-wrap">
@@ -523,21 +506,21 @@
       </div>
 
       <div class="right-sidebar-content custom-scroll">
-        <!-- Room Info Card (Matches Image 1) -->
+        <!-- Room Info Card -->
         <div class="channel-details-card" id="channel-details-card">
           <div class="cd-header-row">
             <div class="cd-icon-box" id="cd-icon-box">
-              <span class="cd-icon">🌐</span>
+              <span class="cd-icon">💬</span>
             </div>
             <div class="cd-title-wrap">
               <div class="cd-name-row">
                 <h4 id="cd-name">General</h4>
-                <span class="general-global-badge" id="cd-badge">GLOBAL</span>
+                <span class="general-global-badge" id="cd-badge">PUBLIC</span>
               </div>
-              <span class="cd-sub" id="cd-sub">Public Community Channel</span>
+              <span class="cd-sub" id="cd-sub">Public Anonymous Channel</span>
             </div>
           </div>
-          <p class="cd-desc" id="cd-desc">Town square for everyone. Hang out and chat with the community.</p>
+          <p class="cd-desc" id="cd-desc">Anonymous world chat. Safe and open public space with masked identities.</p>
 
           <!-- Action buttons inside info card for custom groups -->
           <div class="group-mgmt-buttons" id="group-mgmt-buttons" style="margin-top: 12px; display: none; flex-direction: column; gap: 6px;">
@@ -550,7 +533,7 @@
           </div>
         </div>
 
-        <!-- Section: Channel Overview (Matches Image 1) -->
+        <!-- Section: Channel Overview -->
         <div class="cd-section">
           <div class="cd-section-header">
             <span class="cd-section-title">CHANNEL OVERVIEW</span>
@@ -576,13 +559,44 @@
           </div>
         </div>
 
-        <!-- Custom Channel / Direct Members list container -->
-        <div class="cd-section" id="custom-members-section">
+        <!-- Section: Anonymous Privacy Policy (Shown for General World Chat) -->
+        <div class="cd-section" id="general-privacy-section">
+          <div class="cd-section-header">
+            <span class="cd-section-title">PRIVACY & ANONYMITY</span>
+            <span class="cd-status-badge" style="background:rgba(99,102,241,0.18);color:#a5b4fc;border-color:rgba(99,102,241,0.35);">100% Protected</span>
+          </div>
+          <div class="privacy-notice-box">
+            <div class="privacy-notice-item">
+              <span class="privacy-icon">🛡️</span>
+              <div class="privacy-meta">
+                <strong>Masked Identities</strong>
+                <span>Usernames and personal profiles are not visible in this chat.</span>
+              </div>
+            </div>
+            <div class="privacy-notice-item">
+              <span class="privacy-icon">👁️</span>
+              <div class="privacy-meta">
+                <strong>Open Public Space</strong>
+                <span>Anyone online can participate in real-time anonymously.</span>
+              </div>
+            </div>
+            <div class="privacy-notice-item">
+              <span class="privacy-icon">👥</span>
+              <div class="privacy-meta">
+                <strong>Live Presence Only</strong>
+                <span>Only the real-time number of active participants is displayed.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Custom Channel / Direct Members list container (Hidden in General) -->
+        <div class="cd-section" id="custom-members-section" style="display:none;">
           <div class="cd-section-header">
             <span class="cd-section-title">MEMBERS (<span id="member-count">0</span>)</span>
           </div>
           <div class="member-list" id="room-member-list">
-            <!-- Dynamically populated -->
+            <!-- Dynamically populated for custom groups/DMs -->
           </div>
         </div>
       </div>
