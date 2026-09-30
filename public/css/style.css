@@ -78,7 +78,6 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
-  scroll-behavior: smooth;
   text-rendering: optimizeLegibility;
 }
 
@@ -94,7 +93,6 @@ html, body {
 
 /* Custom Scrollbars */
 .custom-scroll {
-  scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
@@ -1114,11 +1112,9 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
   display: flex;
   flex-direction: column;
   position: relative;
-  scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
   transform: translateZ(0);
-  will-change: scroll-position;
 }
 
 .chat-welcome-banner {
@@ -1165,7 +1161,6 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  contain: layout style;
   transform: translateZ(0);
 }
 
@@ -1197,10 +1192,7 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
   padding: 6px 10px;
   border-radius: var(--radius-md);
   position: relative;
-  transition: background 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  contain: layout style paint;
-  content-visibility: auto;
-  contain-intrinsic-size: 0 60px;
+  transition: background 0.12s ease-out;
   transform: translateZ(0);
 }
 .message-item:hover {
