@@ -1350,18 +1350,15 @@ const App = {
     const isGeneral = this.currentRoom && (this.currentRoom.id === 'chan_general' || this.currentRoom.name === 'general');
     const isCreator = this.currentRoom && Auth.user && this.currentRoom.created_by === Auth.user.id;
 
-    const generalPrivacySec = document.getElementById('general-privacy-section');
     const customMembersSection = document.getElementById('custom-members-section');
 
     if (isGeneral) {
-      if (generalPrivacySec) generalPrivacySec.style.display = 'block';
       if (customMembersSection) customMembersSection.style.display = 'none';
       memberList.innerHTML = '';
       this.updateOnlinePresenceCount();
       return;
     }
 
-    if (generalPrivacySec) generalPrivacySec.style.display = 'none';
     if (customMembersSection) customMembersSection.style.display = 'block';
 
     if (isChannel && !isGeneral) {

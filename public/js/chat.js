@@ -221,7 +221,6 @@ const Chat = {
     const cdPrivacy = document.getElementById('cd-privacy-val');
     const onlineCountEl = document.getElementById('overview-online-count');
     const secSection = document.getElementById('security-policy-section');
-    const generalPrivacySec = document.getElementById('general-privacy-section');
     const customMembersSection = document.getElementById('custom-members-section');
 
     if (rightTitle) rightTitle.textContent = isGeneral ? 'General' : (isChannel ? `#${room.name}` : room.name);
@@ -247,7 +246,7 @@ const Chat = {
 
     if (cdDesc) {
       cdDesc.textContent = isGeneral 
-        ? 'Anonymous world chat. Safe and open public space with masked identities.'
+        ? 'Anonymous world chat.'
         : (room.desc || 'Private messaging space.');
     }
 
@@ -262,10 +261,6 @@ const Chat = {
 
     if (secSection) {
       secSection.style.display = 'none';
-    }
-
-    if (generalPrivacySec) {
-      generalPrivacySec.style.display = isGeneral ? 'block' : 'none';
     }
 
     if (customMembersSection) {
@@ -296,7 +291,7 @@ const Chat = {
         welcomeTitle.textContent = isGeneral ? 'Anonymous World Chat' : (this.activeRoom.type === 'channel' ? `Welcome to #${this.activeRoom.name}!` : `Conversation with ${this.activeRoom.name}`);
       }
       if (welcomeDesc) {
-        welcomeDesc.textContent = isGeneral ? 'Anonymous world chat — open public conversation with privacy protection.' : (this.activeRoom.desc || 'Send your first message to get started.');
+        welcomeDesc.textContent = isGeneral ? 'Anonymous world chat.' : (this.activeRoom.desc || 'Send your first message to get started.');
       }
     }
 
