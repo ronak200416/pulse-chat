@@ -207,7 +207,7 @@ const Chat = {
     const tagEl = document.getElementById('current-room-tag');
 
     if (titleEl) titleEl.textContent = isChannel ? (isGeneral ? 'General' : `#${room.name}`) : room.name;
-    if (descEl) descEl.textContent = 'End-To-End Encrypted chat';
+    if (descEl) descEl.textContent = 'End-to-End Encrypted';
     
     if (iconEl) {
       if (isGeneral) {
@@ -236,12 +236,8 @@ const Chat = {
 
     if (rightTitle) rightTitle.textContent = isGeneral ? 'General' : (isChannel ? `#${room.name}` : room.name);
     if (rightSub) {
-      if (isChannel && !isGeneral) {
-        rightSub.style.display = 'inline-block';
-        rightSub.textContent = 'Channel Details';
-      } else {
-        rightSub.style.display = 'none';
-      }
+      rightSub.style.display = 'none';
+      rightSub.textContent = '';
     }
     if (cdName) cdName.textContent = isGeneral ? 'General' : (isChannel ? `#${room.name}` : room.name);
     
@@ -250,16 +246,8 @@ const Chat = {
     }
 
     if (cdSub) {
-      if (isGeneral) {
-        cdSub.style.display = 'block';
-        cdSub.textContent = 'Public Anonymous Channel';
-      } else if (isChannel) {
-        cdSub.style.display = 'block';
-        cdSub.textContent = 'Private Group Channel';
-      } else {
-        cdSub.style.display = 'none';
-        cdSub.textContent = '';
-      }
+      cdSub.style.display = 'none';
+      cdSub.textContent = '';
     }
 
     if (cdDesc) {
@@ -352,7 +340,7 @@ const Chat = {
         welcomeTitle.textContent = isGeneral ? 'Welcome to General' : (this.activeRoom.type === 'channel' ? `Welcome to #${this.activeRoom.name}!` : `Conversation with ${this.activeRoom.name}`);
       }
       if (welcomeDesc) {
-        welcomeDesc.textContent = 'End-To-End Encrypted chat';
+        welcomeDesc.textContent = 'End-to-End Encrypted';
       }
     }
 
