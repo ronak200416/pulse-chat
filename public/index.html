@@ -371,7 +371,7 @@
           <div class="room-details">
             <div class="room-title-row">
               <h2 id="current-room-title">General</h2>
-              <span class="room-type-tag" id="current-room-tag">Channel</span>
+              <span class="room-type-tag" id="current-room-tag" style="display:none;">Channel</span>
             </div>
             <p class="room-subtitle" id="current-room-desc">Anonymous world chat</p>
           </div>
@@ -391,17 +391,20 @@
           </button>
 
           <button class="btn btn-sm btn-voice-header" id="btn-header-join-voice" style="display:none;" title="Join Group Voice Room">
-            <span>🎙️ Voice</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            <span>Voice</span>
           </button>
 
           <!-- Channel Action: Delete Group (for creator) -->
           <button class="btn btn-sm btn-danger" id="btn-header-delete-group" style="display:none;" title="Delete this group">
-            <span>🗑️ Delete</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            <span>Delete</span>
           </button>
 
           <!-- Channel Action: Leave Group (for members) -->
           <button class="btn btn-sm btn-glass" id="btn-header-leave-group" style="display:none;" title="Leave this group">
-            <span>🚪 Leave</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            <span>Leave</span>
           </button>
 
           <!-- Toggle Right Sidebar (Members / Details) -->
@@ -524,10 +527,10 @@
           <!-- Action buttons inside info card for custom groups -->
           <div class="group-mgmt-buttons" id="group-mgmt-buttons" style="margin-top: 12px; display: none; flex-direction: column; gap: 6px;">
             <button class="btn btn-sm btn-danger btn-block" id="btn-sidebar-delete-group" style="display:none;">
-              🗑️ Delete Group
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete Group
             </button>
             <button class="btn btn-sm btn-glass btn-block" id="btn-sidebar-leave-group" style="display:none;">
-              🚪 Leave Group
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Leave Group
             </button>
           </div>
         </div>
@@ -834,7 +837,7 @@
     <div class="modal-card dialog-modal-card">
       <div class="modal-header">
         <div class="modal-header-title">
-          <span class="dialog-icon" id="dialog-icon">⚡</span>
+          <span class="dialog-icon" id="dialog-icon"></span>
           <h3 id="dialog-title">Confirm Action</h3>
         </div>
         <button class="icon-btn-xs modal-close-btn" id="btn-dialog-close" aria-label="Close dialog">✕</button>

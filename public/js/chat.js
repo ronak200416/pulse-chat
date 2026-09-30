@@ -219,7 +219,14 @@ const Chat = {
       }
     }
 
-    if (tagEl) tagEl.textContent = isChannel ? 'Channel' : 'Direct Message';
+    if (tagEl) {
+      if (isChannel && !isGeneral) {
+        tagEl.style.display = 'inline-block';
+        tagEl.textContent = 'Channel';
+      } else {
+        tagEl.style.display = 'none';
+      }
+    }
 
     // Update Right Sidebar
     const rightTitle = document.getElementById('right-sidebar-title');
@@ -235,7 +242,14 @@ const Chat = {
     const customMembersSection = document.getElementById('custom-members-section');
 
     if (rightTitle) rightTitle.textContent = isGeneral ? 'General' : (isChannel ? `#${room.name}` : room.name);
-    if (rightSub) rightSub.textContent = isChannel ? 'Channel Details' : 'Direct Message';
+    if (rightSub) {
+      if (isChannel && !isGeneral) {
+        rightSub.style.display = 'inline-block';
+        rightSub.textContent = 'Channel Details';
+      } else {
+        rightSub.style.display = 'none';
+      }
+    }
     if (cdName) cdName.textContent = isGeneral ? 'General' : (isChannel ? `#${room.name}` : room.name);
     
     if (cdBadge) {
@@ -354,7 +368,7 @@ const Chat = {
     if (isGeneral) {
       senderName = isMe ? 'Anonymous (You)' : 'Anonymous';
       avatarBg = isMe ? '#252d43' : '#1e2438';
-      initial = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="anon-dp-svg"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
+      initial = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="anon-dp-svg"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>';
     }
 
     // Reply Bubble if quoting
@@ -670,7 +684,7 @@ const Chat = {
       message: 'Are you sure you want to permanently delete this message?',
       confirmText: 'Delete',
       danger: true,
-      icon: '🗑️'
+      icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>'
     });
     if (!ok) return;
     App.socket.emit('delete_message', { messageId: msgId, roomId: this.activeRoom.id }, (res) => {
@@ -687,7 +701,7 @@ const Chat = {
       defaultValue: currentText.trim(),
       placeholder: 'Type updated message...',
       confirmText: 'Save Edit',
-      icon: '✏️'
+      icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
     });
     if (newText !== null && newText.trim() && newText.trim() !== currentText.trim()) {
       App.socket.emit('edit_message', {

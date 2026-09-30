@@ -251,7 +251,7 @@ const App = {
         message: `Are you sure you want to permanently delete the group #${this.currentRoom.name}? This will remove all its messages and cannot be undone.`,
         confirmText: 'Delete Group',
         danger: true,
-        icon: '🗑️'
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>'
       });
       if (!ok) return;
 
@@ -286,7 +286,7 @@ const App = {
         message: `Are you sure you want to leave the group #${this.currentRoom.name}?`,
         confirmText: 'Leave Group',
         danger: true,
-        icon: '🚪'
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>'
       });
       if (!ok) return;
 
@@ -753,7 +753,7 @@ const App = {
       message: `Are you sure you want to remove @${friendName} from your friends list?`,
       confirmText: 'Remove Friend',
       danger: true,
-      icon: '👤'
+      icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="18" y1="8" x2="23" y2="13"/><line x1="23" y1="8" x2="18" y2="13"/></svg>'
     });
     if (!ok) return;
 
@@ -1505,7 +1505,7 @@ const App = {
       message: `Are you sure you want to remove ${displayName} from #${this.currentRoom.name}?`,
       confirmText: 'Remove Member',
       danger: true,
-      icon: '✕'
+      icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
     });
     if (!ok) return;
 
@@ -1645,7 +1645,7 @@ const App = {
     return div.innerHTML;
   },
 
-  confirm({ title = 'Confirm Action', message = 'Are you sure?', confirmText = 'Confirm', cancelText = 'Cancel', danger = false, icon = '⚡' } = {}) {
+  confirm({ title = 'Confirm Action', message = 'Are you sure?', confirmText = 'Confirm', cancelText = 'Cancel', danger = false, icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' } = {}) {
     return new Promise((resolve) => {
       const modal = document.getElementById('app-dialog-modal');
       const titleEl = document.getElementById('dialog-title');
@@ -1663,7 +1663,7 @@ const App = {
 
       if (titleEl) titleEl.textContent = title;
       if (msgEl) msgEl.textContent = message;
-      if (iconEl) iconEl.textContent = icon;
+      if (iconEl) iconEl.innerHTML = icon;
       if (inputWrap) inputWrap.style.display = 'none';
 
       if (btnConfirm) {
@@ -1701,7 +1701,7 @@ const App = {
     });
   },
 
-  prompt({ title = 'Input Required', message = '', defaultValue = '', placeholder = '', confirmText = 'Save', cancelText = 'Cancel', icon = '✏️' } = {}) {
+  prompt({ title = 'Input Required', message = '', defaultValue = '', placeholder = '', confirmText = 'Save', cancelText = 'Cancel', icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>' } = {}) {
     return new Promise((resolve) => {
       const modal = document.getElementById('app-dialog-modal');
       const titleEl = document.getElementById('dialog-title');
@@ -1720,7 +1720,7 @@ const App = {
 
       if (titleEl) titleEl.textContent = title;
       if (msgEl) msgEl.textContent = message;
-      if (iconEl) iconEl.textContent = icon;
+      if (iconEl) iconEl.innerHTML = icon;
       if (inputWrap) inputWrap.style.display = 'block';
 
       inputEl.value = defaultValue || '';
