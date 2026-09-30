@@ -991,6 +991,10 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
   text-overflow: ellipsis;
   max-width: 350px;
 }
+.room-subtitle:empty {
+  display: none !important;
+  margin: 0 !important;
+}
 
 .header-right {
   display: flex;

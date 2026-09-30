@@ -1181,14 +1181,14 @@ const App = {
       id: 'chan_general',
       name: 'General',
       type: 'channel',
-      desc: 'Anonymous world chat',
+      desc: '',
       created_by: 'system'
     };
     this.selectRoom({
       id: general.id,
       name: 'General',
       type: 'channel',
-      desc: 'Anonymous world chat',
+      desc: '',
       created_by: general.created_by || 'system'
     });
   },

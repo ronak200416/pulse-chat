@@ -207,7 +207,7 @@ const Chat = {
     const tagEl = document.getElementById('current-room-tag');
 
     if (titleEl) titleEl.textContent = isChannel ? (isGeneral ? 'General' : `#${room.name}`) : room.name;
-    if (descEl) descEl.textContent = isGeneral ? 'Anonymous world chat' : (room.desc || (isChannel ? 'Group conversation' : 'Direct message'));
+    if (descEl) descEl.textContent = isGeneral ? '' : (room.desc || (isChannel ? 'Group conversation' : 'Direct message'));
     
     if (iconEl) {
       if (isGeneral) {
@@ -271,8 +271,8 @@ const Chat = {
 
     if (cdDesc) {
       if (isGeneral) {
-        cdDesc.style.display = 'block';
-        cdDesc.textContent = 'Anonymous world chat.';
+        cdDesc.style.display = 'none';
+        cdDesc.textContent = '';
       } else if (isChannel && room.desc) {
         cdDesc.style.display = 'block';
         cdDesc.textContent = room.desc;
@@ -339,10 +339,10 @@ const Chat = {
     if (this.activeRoom) {
       const isGeneral = this.activeRoom.id === 'chan_general' || (this.activeRoom.name && this.activeRoom.name.toLowerCase() === 'general');
       if (welcomeTitle) {
-        welcomeTitle.textContent = isGeneral ? 'Anonymous World Chat' : (this.activeRoom.type === 'channel' ? `Welcome to #${this.activeRoom.name}!` : `Conversation with ${this.activeRoom.name}`);
+        welcomeTitle.textContent = isGeneral ? 'Welcome to General' : (this.activeRoom.type === 'channel' ? `Welcome to #${this.activeRoom.name}!` : `Conversation with ${this.activeRoom.name}`);
       }
       if (welcomeDesc) {
-        welcomeDesc.textContent = isGeneral ? 'Anonymous world chat.' : (this.activeRoom.desc || 'Send your first message to get started.');
+        welcomeDesc.textContent = isGeneral ? 'Send your first message to get started.' : (this.activeRoom.desc || 'Send your first message to get started.');
       }
     }
 
