@@ -746,15 +746,7 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
   text-overflow: ellipsis;
 }
 .general-global-badge {
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  padding: 2px 7px;
-  border-radius: var(--radius-full);
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.35);
-  flex-shrink: 0;
+  display: none !important;
 }
 .general-desc {
   font-size: 0.74rem;
@@ -956,6 +948,25 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
   color: var(--accent-link);
   border: 1px solid var(--border-subtle);
   flex-shrink: 0;
+}
+.room-icon-badge svg,
+.general-icon svg,
+.cd-icon-box svg,
+.welcome-icon-box svg {
+  display: block;
+  stroke: var(--accent-link);
+}
+.room-hash {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 1.25rem;
+  color: var(--accent-primary);
+}
+.room-dm-initial {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 1rem;
+  color: #fff;
 }
 .room-title-row {
   display: flex;
@@ -1840,14 +1851,7 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
   color: #fff;
 }
 .general-global-badge {
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  padding: 2px 7px;
-  border-radius: var(--radius-full);
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.35);
+  display: none !important;
 }
 .cd-sub {
   display: block;

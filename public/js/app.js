@@ -11,6 +11,8 @@ const App = {
   soundEnabled: true,
   audioCtx: null,
   friendSearchDebounce: null,
+  membersCache: new Map(), // channelId -> members[] for 0ms loading
+  userCache: new Map(), // userId -> user object
 
   async init() {
     Chat.init();
@@ -468,10 +470,10 @@ const App = {
       if (relationship === 'friends') {
         friendBtnHtml = `
           <button class="btn btn-sm btn-primary" onclick="App.openDirectMessage('${user.id}', '${this.escapeHtml(user.display_name || user.username)}'); document.getElementById('user-profile-modal').classList.remove('active');">
-            💬 Message
+            Message
           </button>
           <button class="btn btn-sm btn-success" onclick="CallManager.startDirectCall('${user.id}', '${this.escapeHtml(user.display_name || user.username)}', '${user.avatar_url || ''}', '${user.avatar_color || '#6366f1'}'); document.getElementById('user-profile-modal').classList.remove('active');">
-            📞 Voice Call
+            Voice Call
           </button>
           <button class="btn btn-sm btn-glass text-danger" onclick="App.removeFriend('${user.id}', '${this.escapeHtml(user.username)}'); document.getElementById('user-profile-modal').classList.remove('active');">
             ✕ Unfriend
@@ -479,7 +481,7 @@ const App = {
         `;
       } else if (relationship === 'pending_sent') {
         friendBtnHtml = `
-          <span class="badge-sm" style="color:#f59e0b;font-size:0.8rem;padding:6px 12px;background:rgba(245,158,11,0.1);border-radius:6px;">⏳ Request Sent</span>
+          <span class="badge-sm" style="color:#f59e0b;font-size:0.8rem;padding:6px 12px;background:rgba(245,158,11,0.1);border-radius:6px;">Request Sent</span>
           <button class="btn btn-sm btn-glass" onclick="App.rejectFriendRequest('${requestId}'); document.getElementById('user-profile-modal').classList.remove('active');">
             Cancel Request
           </button>
@@ -499,7 +501,7 @@ const App = {
             + Add Friend
           </button>
           <button class="btn btn-sm btn-glass" onclick="App.openDirectMessage('${user.id}', '${this.escapeHtml(user.display_name || user.username)}'); document.getElementById('user-profile-modal').classList.remove('active');">
-            💬 Send Message
+            Send Message
           </button>
         `;
       }
@@ -980,7 +982,6 @@ const App = {
       name: friend ? (friend.display_name || friend.username) : friendName,
       type: 'direct',
       recipientId: friendId,
-      icon: '👤',
       desc: friend ? (friend.bio || `Direct message with @${friend.username}`) : `Direct message with @${friendName}`
     });
     this.closeMobileDrawer();
@@ -1200,7 +1201,6 @@ const App = {
       id: 'chan_general',
       name: 'General',
       type: 'channel',
-      icon: '💬',
       desc: 'Anonymous world chat',
       created_by: 'system'
     };
@@ -1208,7 +1208,6 @@ const App = {
       id: general.id,
       name: 'General',
       type: 'channel',
-      icon: general.icon || '💬',
       desc: 'Anonymous world chat',
       created_by: general.created_by || 'system'
     });
@@ -1350,7 +1349,6 @@ const App = {
           name: u.display_name || u.username,
           type: 'direct',
           recipientId: u.id,
-          icon: '👤',
           desc: u.bio || `Direct message with @${u.username}`
         });
         this.closeMobileDrawer();
@@ -1383,6 +1381,13 @@ const App = {
     if (customMembersSection) customMembersSection.style.display = 'block';
 
     if (isChannel && !isGeneral) {
+      // ⚡ Fast-Render from Cache if available
+      if (this.membersCache.has(this.currentRoom.id)) {
+        const cached = this.membersCache.get(this.currentRoom.id);
+        if (memberCount) memberCount.textContent = cached.length;
+        this.renderMemberListDOM(cached, memberList, isCreator);
+      }
+
       try {
         const res = await fetch(`/api/channels/${this.currentRoom.id}/members`);
         const data = await res.json();
@@ -1397,42 +1402,10 @@ const App = {
           }
         });
         const members = Array.from(memberMap.values());
+        this.membersCache.set(this.currentRoom.id, members);
 
         if (memberCount) memberCount.textContent = members.length;
-        memberList.innerHTML = '';
-
-        members.forEach(u => {
-          const isOnline = this.onlineUserIds.has(u.id);
-          const isThisUserCreator = this.currentRoom.created_by === u.id;
-          const isSelf = Auth.user && u.id === Auth.user.id;
-          const isFriend = this.friends.some(f => f.id === u.id);
-          const canRemove = isCreator && u.id !== Auth.user.id;
-
-          const item = document.createElement('div');
-          item.className = 'member-item';
-          item.style.cursor = 'pointer';
-          item.title = `Click to view @${u.username}'s profile`;
-          item.onclick = () => this.openUserProfileModal(u.id);
-
-          item.innerHTML = `
-            <div class="member-avatar" style="background-color:${u.avatar_color || '#6366f1'}">
-              ${(u.display_name || u.username).charAt(0).toUpperCase()}
-            </div>
-            <div style="flex:1;min-width:0;">
-              <div class="member-name">
-                ${this.escapeHtml(u.display_name || u.username)}
-                ${isThisUserCreator ? '<span class="admin-badge">Admin</span>' : ''}
-              </div>
-              <div class="text-xs text-muted">@${this.escapeHtml(u.username)} • ${isOnline ? 'Online' : 'Offline'}</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:6px;">
-              <span class="status-indicator ${isOnline ? 'online' : 'offline'}"></span>
-              ${!isSelf && !isFriend ? `<button class="btn-quick-add" title="Add as friend" onclick="event.stopPropagation(); App.sendFriendRequest('${u.username}')">+</button>` : ''}
-              ${canRemove ? `<button class="btn-remove-member" title="Remove ${this.escapeHtml(u.display_name || u.username)} from group" onclick="event.stopPropagation(); App.removeMemberFromGroup('${u.id}', '${this.escapeHtml(u.display_name || u.username)}')">✕</button>` : ''}
-            </div>
-          `;
-          memberList.appendChild(item);
-        });
+        this.renderMemberListDOM(members, memberList, isCreator);
         return;
       } catch (e) {
         if (currentSeq !== this._membersRenderSeq) return;
@@ -1485,6 +1458,44 @@ const App = {
         memberList.appendChild(myItem);
       }
     }
+  },
+
+  renderMemberListDOM(members, memberList, isCreator) {
+    if (!memberList) return;
+    memberList.innerHTML = '';
+
+    members.forEach(u => {
+      const isOnline = this.onlineUserIds.has(u.id);
+      const isThisUserCreator = this.currentRoom && this.currentRoom.created_by === u.id;
+      const isSelf = Auth.user && u.id === Auth.user.id;
+      const isFriend = this.friends.some(f => f.id === u.id);
+      const canRemove = isCreator && u.id !== Auth.user.id;
+
+      const item = document.createElement('div');
+      item.className = 'member-item';
+      item.style.cursor = 'pointer';
+      item.title = `Click to view @${u.username}'s profile`;
+      item.onclick = () => this.openUserProfileModal(u.id);
+
+      item.innerHTML = `
+        <div class="member-avatar" style="background-color:${u.avatar_color || '#6366f1'}">
+          ${(u.display_name || u.username).charAt(0).toUpperCase()}
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div class="member-name">
+            ${this.escapeHtml(u.display_name || u.username)}
+            ${isThisUserCreator ? '<span class="admin-badge">Admin</span>' : ''}
+          </div>
+          <div class="text-xs text-muted">@${this.escapeHtml(u.username)} • ${isOnline ? 'Online' : 'Offline'}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span class="status-indicator ${isOnline ? 'online' : 'offline'}"></span>
+          ${!isSelf && !isFriend ? `<button class="btn-quick-add" title="Add as friend" onclick="event.stopPropagation(); App.sendFriendRequest('${u.username}')">+</button>` : ''}
+          ${canRemove ? `<button class="btn-remove-member" title="Remove ${this.escapeHtml(u.display_name || u.username)} from group" onclick="event.stopPropagation(); App.removeMemberFromGroup('${u.id}', '${this.escapeHtml(u.display_name || u.username)}')">✕</button>` : ''}
+        </div>
+      `;
+      memberList.appendChild(item);
+    });
   },
 
   async removeMemberFromGroup(userId, displayName) {

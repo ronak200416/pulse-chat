@@ -291,13 +291,14 @@
           </div>
           <div class="general-chat-card active" id="btn-general-chat" role="button" tabindex="0" title="Switch to Anonymous World Chat">
             <div class="general-icon-wrap">
-              <span class="general-icon">💬</span>
+              <span class="general-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              </span>
               <span class="general-pulse-dot"></span>
             </div>
             <div class="general-info">
               <div class="general-title-row">
                 <span class="general-name">General</span>
-                <span class="general-global-badge">PUBLIC</span>
               </div>
               <span class="general-desc">Anonymous world chat</span>
             </div>
@@ -365,7 +366,9 @@
           <button class="icon-btn mobile-menu-btn" id="btn-toggle-sidebar" aria-label="Open sidebar">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
           </button>
-          <div class="room-icon-badge" id="current-room-icon">💬</div>
+          <div class="room-icon-badge" id="current-room-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
           <div class="room-details">
             <div class="room-title-row">
               <h2 id="current-room-title">General</h2>
@@ -423,8 +426,8 @@
       <div class="messages-container custom-scroll" id="messages-container">
         <!-- Center Welcome Card -->
         <div class="chat-welcome-banner" id="chat-welcome-banner">
-          <div class="welcome-icon-box">
-            <span class="welcome-icon">💬</span>
+          <div class="welcome-icon-box" id="welcome-icon-box">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           </div>
           <h3 id="welcome-title">Anonymous World Chat</h3>
           <p id="welcome-desc">Anonymous world chat.</p>
@@ -509,12 +512,11 @@
         <div class="channel-details-card" id="channel-details-card">
           <div class="cd-header-row">
             <div class="cd-icon-box" id="cd-icon-box">
-              <span class="cd-icon">💬</span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             </div>
             <div class="cd-title-wrap">
               <div class="cd-name-row">
                 <h4 id="cd-name">General</h4>
-                <span class="general-global-badge" id="cd-badge">PUBLIC</span>
               </div>
               <span class="cd-sub" id="cd-sub">Public Anonymous Channel</span>
             </div>
@@ -590,7 +592,7 @@
         </div>
         <div class="form-group">
           <label for="new-channel-icon">Group Icon (Emoji)</label>
-          <input type="text" id="new-channel-icon" value="💬" maxlength="4" style="font-size:1.4rem; text-align:center; width: 60px;">
+          <input type="text" id="new-channel-icon" value="#" maxlength="4" style="font-size:1.2rem; text-align:center; width: 60px;">
         </div>
         <div class="form-group">
           <label for="new-channel-desc">Description (Optional)</label>

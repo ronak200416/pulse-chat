@@ -2,6 +2,7 @@
 const Chat = {
   activeRoom: null, // { id, name, type, icon, desc }
   replyingTo: null,
+  messageCache: new Map(), // roomId -> messages[] for 0ms instant loading
   isRecordingVoice: false,
   mediaRecorder: null,
   audioChunks: [],
@@ -207,7 +208,17 @@ const Chat = {
 
     if (titleEl) titleEl.textContent = isChannel ? (isGeneral ? 'General' : `#${room.name}`) : room.name;
     if (descEl) descEl.textContent = isGeneral ? 'Anonymous world chat' : (room.desc || (isChannel ? 'Group conversation' : 'Direct message'));
-    if (iconEl) iconEl.textContent = room.icon || (isChannel ? '💬' : '👤');
+    
+    if (iconEl) {
+      if (isGeneral) {
+        iconEl.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+      } else if (isChannel) {
+        iconEl.innerHTML = '<span class="room-hash">#</span>';
+      } else {
+        iconEl.innerHTML = '<span class="room-dm-initial">' + this.escapeHtml(room.name ? room.name.charAt(0).toUpperCase() : 'U') + '</span>';
+      }
+    }
+
     if (tagEl) tagEl.textContent = isChannel ? 'Channel' : 'Direct Message';
 
     // Update Right Sidebar
@@ -228,16 +239,7 @@ const Chat = {
     if (cdName) cdName.textContent = isGeneral ? 'General' : (isChannel ? `#${room.name}` : room.name);
     
     if (cdBadge) {
-      if (isGeneral) {
-        cdBadge.textContent = 'PUBLIC';
-        cdBadge.style.display = 'inline-block';
-      } else if (isChannel) {
-        cdBadge.textContent = 'GROUP';
-        cdBadge.style.display = 'inline-block';
-      } else {
-        cdBadge.textContent = 'DIRECT';
-        cdBadge.style.display = 'inline-block';
-      }
+      cdBadge.style.display = 'none';
     }
 
     if (cdSub) {
@@ -248,6 +250,16 @@ const Chat = {
       cdDesc.textContent = isGeneral 
         ? 'Anonymous world chat.'
         : (room.desc || 'Private messaging space.');
+    }
+
+    if (cdIcon) {
+      if (isGeneral) {
+        cdIcon.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+      } else if (isChannel) {
+        cdIcon.innerHTML = '<span class="room-hash">#</span>';
+      } else {
+        cdIcon.innerHTML = '<span class="room-dm-initial">' + this.escapeHtml(room.name ? room.name.charAt(0).toUpperCase() : 'U') + '</span>';
+      }
     }
 
     if (cdPrivacy) {
@@ -267,11 +279,20 @@ const Chat = {
       customMembersSection.style.display = isGeneral ? 'none' : 'block';
     }
 
-    // Fetch messages from SQLite
+    // ⚡ Instant Cache-First Display (0ms Latency)
+    if (this.messageCache.has(room.id)) {
+      this.renderMessages(this.messageCache.get(room.id));
+    }
+
+    // Background Revalidation (Stale-While-Revalidate)
     try {
       const res = await fetch(`/api/messages/${room.id}?limit=60`);
       const data = await res.json();
-      this.renderMessages(data.messages || []);
+      const messages = data.messages || [];
+      this.messageCache.set(room.id, messages);
+      if (this.activeRoom && this.activeRoom.id === room.id) {
+        this.renderMessages(messages);
+      }
     } catch (err) {
       console.error('Failed to load room messages:', err);
     }
@@ -373,12 +394,12 @@ const Chat = {
       const sizeMb = (msg.file_size / (1024 * 1024)).toFixed(2);
       bodyHtml = `
         <a href="${msg.file_url}" download="${this.escapeHtml(msg.file_name || 'download')}" target="_blank" class="msg-file-wrap">
-          <span class="file-icon">📁</span>
+          <span class="file-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg></span>
           <div class="file-meta">
             <span class="file-name">${this.escapeHtml(msg.file_name || 'File')}</span>
             <span class="file-size">${sizeMb > 0 ? sizeMb + ' MB' : 'Attachment'}</span>
           </div>
-          <span class="icon-btn-xs">⬇️</span>
+          <span class="icon-btn-xs" style="color:var(--accent-link);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
         </a>
       `;
     }
@@ -389,14 +410,22 @@ const Chat = {
     // Reactions HTML
     const reactionsHtml = this.renderReactionsHtml(msg.reactions || [], msg.id);
 
-    // Action Bar HTML
+    // Action Bar HTML (SVG vector buttons)
     const quoteSender = isGeneral ? 'Anonymous' : (msg.sender_display_name || msg.sender_username);
     const actionBarHtml = `
       <div class="message-action-bar">
-        <button class="icon-btn-xs" title="React" onclick="Chat.showQuickReaction('${msg.id}')">😊</button>
-        <button class="icon-btn-xs" title="Reply" onclick="Chat.setReply('${msg.id}', '${this.escapeHtml(quoteSender)}', '${this.escapeHtml(msg.content || '')}')">💬</button>
-        ${isMe ? `<button class="icon-btn-xs" title="Edit" onclick="Chat.editMessagePrompt('${msg.id}')">✏️</button>` : ''}
-        ${isMe ? `<button class="icon-btn-xs" title="Delete" onclick="Chat.deleteMessage('${msg.id}')">🗑️</button>` : ''}
+        <button class="icon-btn-xs" title="React" aria-label="React" onclick="Chat.showQuickReaction('${msg.id}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+        </button>
+        <button class="icon-btn-xs" title="Reply" aria-label="Reply" onclick="Chat.setReply('${msg.id}', '${this.escapeHtml(quoteSender)}', '${this.escapeHtml(msg.content || '')}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+        </button>
+        ${isMe ? `<button class="icon-btn-xs" title="Edit" aria-label="Edit" onclick="Chat.editMessagePrompt('${msg.id}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </button>` : ''}
+        ${isMe ? `<button class="icon-btn-xs" title="Delete" aria-label="Delete" onclick="Chat.deleteMessage('${msg.id}')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>` : ''}
       </div>
     `;
 
@@ -435,6 +464,17 @@ const Chat = {
   },
 
   appendMessage(msg) {
+    // Keep client cache updated
+    if (msg && msg.room_id) {
+      if (!this.messageCache.has(msg.room_id)) {
+        this.messageCache.set(msg.room_id, []);
+      }
+      const list = this.messageCache.get(msg.room_id);
+      if (!list.some(m => m.id === msg.id)) {
+        list.push(msg);
+      }
+    }
+
     if (!this.messagesFeed) return;
     // Only append if message belongs to current room
     if (this.activeRoom && msg.room_id !== this.activeRoom.id) {
@@ -666,6 +706,10 @@ const Chat = {
   },
 
   removeMessageElement(msgId) {
+    if (this.activeRoom && this.messageCache.has(this.activeRoom.id)) {
+      const list = this.messageCache.get(this.activeRoom.id);
+      this.messageCache.set(this.activeRoom.id, list.filter(m => m.id !== msgId));
+    }
     const el = document.getElementById(`msg-${msgId}`);
     if (el) el.remove();
   },
