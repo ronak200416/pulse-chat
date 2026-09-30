@@ -207,15 +207,16 @@ const Chat = {
     const tagEl = document.getElementById('current-room-tag');
 
     if (titleEl) titleEl.textContent = isChannel ? (isGeneral ? 'General' : `#${room.name}`) : room.name;
-    if (descEl) descEl.textContent = isGeneral ? '' : (room.desc || (isChannel ? 'Group conversation' : 'Direct message'));
+    if (descEl) descEl.textContent = 'End-To-End Encrypted chat';
     
     if (iconEl) {
       if (isGeneral) {
-        iconEl.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>';
+        iconEl.innerHTML = '<span class="room-dm-initial">G</span>';
       } else if (isChannel) {
         iconEl.innerHTML = '<span class="room-hash">#</span>';
       } else {
-        iconEl.innerHTML = '<span class="room-dm-initial">' + this.escapeHtml(room.name ? room.name.charAt(0).toUpperCase() : 'U') + '</span>';
+        const initial = (room.name || 'U').trim().charAt(0).toUpperCase();
+        iconEl.innerHTML = '<span class="room-dm-initial">' + this.escapeHtml(initial) + '</span>';
       }
     }
 
@@ -285,11 +286,12 @@ const Chat = {
 
     if (cdIcon) {
       if (isGeneral) {
-        cdIcon.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>';
+        cdIcon.innerHTML = '<span class="room-dm-initial">G</span>';
       } else if (isChannel) {
         cdIcon.innerHTML = '<span class="room-hash">#</span>';
       } else {
-        cdIcon.innerHTML = '<span class="room-dm-initial">' + this.escapeHtml(room.name ? room.name.charAt(0).toUpperCase() : 'U') + '</span>';
+        const initial = (room.name || 'U').trim().charAt(0).toUpperCase();
+        cdIcon.innerHTML = '<span class="room-dm-initial">' + this.escapeHtml(initial) + '</span>';
       }
     }
 
@@ -338,16 +340,29 @@ const Chat = {
     this.messagesFeed.innerHTML = '';
 
     const welcomeBanner = document.getElementById('chat-welcome-banner');
+    const welcomeIcon = document.getElementById('welcome-icon-box');
     const welcomeTitle = document.getElementById('welcome-title');
     const welcomeDesc = document.getElementById('welcome-desc');
 
     if (this.activeRoom) {
       const isGeneral = this.activeRoom.id === 'chan_general' || (this.activeRoom.name && this.activeRoom.name.toLowerCase() === 'general');
+      
+      if (welcomeIcon) {
+        if (isGeneral) {
+          welcomeIcon.innerHTML = '<span class="room-dm-initial" style="font-size:1.4rem; font-weight:700;">G</span>';
+        } else if (this.activeRoom.type === 'channel') {
+          welcomeIcon.innerHTML = '<span class="room-hash" style="font-size:1.6rem;">#</span>';
+        } else {
+          const initial = (this.activeRoom.name || 'U').trim().charAt(0).toUpperCase();
+          welcomeIcon.innerHTML = '<span class="room-dm-initial" style="font-size:1.4rem; font-weight:700;">' + this.escapeHtml(initial) + '</span>';
+        }
+      }
+
       if (welcomeTitle) {
         welcomeTitle.textContent = isGeneral ? 'Welcome to General' : (this.activeRoom.type === 'channel' ? `Welcome to #${this.activeRoom.name}!` : `Conversation with ${this.activeRoom.name}`);
       }
       if (welcomeDesc) {
-        welcomeDesc.textContent = isGeneral ? 'Send your first message to get started.' : (this.activeRoom.desc || 'Send your first message to get started.');
+        welcomeDesc.textContent = 'End-To-End Encrypted chat';
       }
     }
 
