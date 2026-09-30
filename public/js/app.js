@@ -118,35 +118,6 @@ const App = {
       });
     }
 
-    // Voice Call Header Buttons
-    const btnHeaderCall = document.getElementById('btn-header-call');
-    if (btnHeaderCall) {
-      btnHeaderCall.addEventListener('click', () => {
-        if (this.currentRoom && this.currentRoom.type === 'direct') {
-          const partner = this.friends.find(f => f.id === this.currentRoom.recipientId) || {
-            id: this.currentRoom.recipientId,
-            display_name: this.currentRoom.name,
-            username: this.currentRoom.name
-          };
-          CallManager.startDirectCall(
-            partner.id,
-            partner.display_name || partner.username,
-            partner.avatar_url || '',
-            partner.avatar_color || '#6366f1'
-          );
-        }
-      });
-    }
-
-    const btnHeaderJoinVoice = document.getElementById('btn-header-join-voice');
-    if (btnHeaderJoinVoice) {
-      btnHeaderJoinVoice.addEventListener('click', () => {
-        if (this.currentRoom && this.currentRoom.type === 'channel') {
-          CallManager.joinGroupVoice(this.currentRoom.id, this.currentRoom.name);
-        }
-      });
-    }
-
     // Sound Toggle Button
     const btnSound = document.getElementById('btn-toggle-sound');
     const soundIcon = document.getElementById('sound-icon');

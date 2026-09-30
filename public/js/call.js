@@ -1,14 +1,15 @@
-// Pulse Chat Lightweight & High-Performance WebRTC Voice Calling Engine
+// Pulse Chat WebRTC Voice Calling Engine
 const CallManager = {
-  activeCall: null, // { type: 'direct'|'group', callId, partnerId, partnerName, partnerAvatar, partnerColor, channelId, channelName, startTime, timerInterval, isCaller }
+  activeCall: null, // { type: 'direct'|'group', callId, partnerId, partnerName, partnerAvatar, partnerColor, channelId, channelName, startTime, timerInterval, ringTimeout, isCaller }
   localStream: null,
   peerConnections: new Map(), // 'direct' or socketId -> RTCPeerConnection
   pendingCandidates: new Map(), // 'direct' or socketId -> RTCIceCandidate[]
-  audioElements: new Map(),
+  audioElements: new Map(), // 'direct' or socketId -> HTMLAudioElement
   
   isMuted: false,
+  isInitiating: false,
 
-  // Fast, reliable public STUN servers (zero-timeout, sub-20ms resolution)
+  // High-performance public STUN servers for instant candidate gathering across all devices & networks
   rtcConfig: {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
@@ -18,7 +19,8 @@ const CallManager = {
       { urls: 'stun:stun4.l.google.com:19302' },
       { urls: 'stun:stun.cloudflare.com:3478' },
       { urls: 'stun:global.stun.twilio.com:3478' }
-    ]
+    ],
+    iceCandidatePoolSize: 10
   },
 
   init() {
@@ -30,19 +32,20 @@ const CallManager = {
   setupGlobalAudioUnlock() {
     const unlock = () => {
       this.audioElements.forEach(audio => {
-        if (audio && audio.paused && audio.srcObject) {
+        if (audio && audio.srcObject) {
           audio.play().catch(() => {});
         }
       });
     };
-    document.addEventListener('click', unlock, { passive: true });
-    document.addEventListener('touchstart', unlock, { passive: true });
+    window.addEventListener('click', unlock, { passive: true });
+    window.addEventListener('touchstart', unlock, { passive: true });
+    window.addEventListener('keydown', unlock, { passive: true });
   },
 
   bindSocketEvents() {
-    if (!App.socket) return;
+    if (!App || !App.socket) return;
 
-    // Remove any previous handlers to prevent duplicate execution on socket reconnect
+    // Clean unbind any previous listeners to prevent multiple execution
     App.socket.off('incoming_voice_call');
     App.socket.off('voice_call_signal');
     App.socket.off('voice_call_accepted');
@@ -77,7 +80,7 @@ const CallManager = {
           App.socket.emit('voice_call_signal', {
             targetUserId: fromUserId,
             signal: answer,
-            callId
+            callId: this.activeCall.callId
           });
 
           this.updateCallStatus('Connected');
@@ -96,11 +99,7 @@ const CallManager = {
         } else if (signal.candidate) {
           const candidateData = signal.candidate;
           if (pc && pc.remoteDescription && pc.remoteDescription.type) {
-            try {
-              await pc.addIceCandidate(new RTCIceCandidate(candidateData));
-            } catch (err) {
-              console.warn('Direct addIceCandidate error:', err);
-            }
+            await this.addCandidateSafely(pc, candidateData);
           } else {
             this.queuePendingCandidate('direct', candidateData);
           }
@@ -113,8 +112,11 @@ const CallManager = {
     // 1-on-1 Call Accepted by Callee -> Caller creates Offer
     App.socket.on('voice_call_accepted', async ({ recipient, callId }) => {
       if (!this.activeCall || this.activeCall.callId !== callId) return;
+      if (this.activeCall.ringTimeout) {
+        clearTimeout(this.activeCall.ringTimeout);
+        this.activeCall.ringTimeout = null;
+      }
       this.updateCallStatus('Connecting...');
-      this.startCallTimer();
 
       try {
         let pc = this.peerConnections.get('direct');
@@ -131,7 +133,7 @@ const CallManager = {
         App.socket.emit('voice_call_signal', {
           targetUserId: this.activeCall.partnerId,
           signal: offer,
-          callId
+          callId: this.activeCall.callId
         });
       } catch (err) {
         console.error('Error creating offer on accepted:', err);
@@ -153,7 +155,7 @@ const CallManager = {
     // Group Voice Channel Events
     App.socket.on('user_joined_group_voice', async ({ socketId, user, channelId }) => {
       if (!this.activeCall || this.activeCall.type !== 'group' || this.activeCall.channelId !== channelId) return;
-      App.showToast(`🎙️ ${user.display_name || user.username} joined voice`);
+      App.showToast(`${user.display_name || user.username} joined voice`);
       this.addParticipantToGroupCallUI(socketId, user);
       this.createGroupPeerConnection(socketId, user, false);
     });
@@ -186,11 +188,7 @@ const CallManager = {
         } else if (signal.candidate) {
           const candidateData = signal.candidate;
           if (pc && pc.remoteDescription && pc.remoteDescription.type) {
-            try {
-              await pc.addIceCandidate(new RTCIceCandidate(candidateData));
-            } catch (e) {
-              console.warn('Group addIceCandidate error:', e);
-            }
+            await this.addCandidateSafely(pc, candidateData);
           } else {
             this.queuePendingCandidate(fromSocketId, candidateData);
           }
@@ -292,20 +290,41 @@ const CallManager = {
   // ================= 1-on-1 Voice Calls =================
 
   async startDirectCall(partnerId, partnerName, partnerAvatar, partnerColor) {
+    if (this.isInitiating) return;
+
+    // If already in a call, cleanly cleanup previous state before starting
     if (this.activeCall) {
-      App.showToast('You are already in an active call');
-      return;
+      this.cleanupCall();
     }
+
+    this.isInitiating = true;
+    const initTimer = setTimeout(() => {
+      this.isInitiating = false;
+    }, 8000);
 
     try {
       await this.acquireLocalAudio();
+      this.getOrCreateAudioElement('direct');
     } catch (err) {
+      clearTimeout(initTimer);
+      this.isInitiating = false;
       console.error('Audio permission error:', err);
       App.showToast('Microphone access is required for voice calling');
       return;
     }
 
+    if (!App.socket || !App.socket.connected) {
+      clearTimeout(initTimer);
+      this.isInitiating = false;
+      App.showToast('Connecting to server... please try again');
+      this.stopLocalAudio();
+      return;
+    }
+
     App.socket.emit('voice_call_initiate', { recipientId: partnerId, callType: 'audio' }, async (res) => {
+      clearTimeout(initTimer);
+      this.isInitiating = false;
+
       if (res && res.error) {
         App.showToast(res.error);
         this.stopLocalAudio();
@@ -321,7 +340,13 @@ const CallManager = {
         partnerAvatar,
         partnerColor: partnerColor || '#6366f1',
         isCaller: true,
-        startTime: null
+        startTime: null,
+        ringTimeout: setTimeout(() => {
+          if (this.activeCall && !this.activeCall.startTime) {
+            App.showToast('No answer');
+            this.endCall();
+          }
+        }, 35000)
       };
 
       this.showActiveCallBar({
@@ -337,8 +362,11 @@ const CallManager = {
 
   handleIncomingCall({ callId, caller }) {
     if (this.activeCall) {
-      App.socket.emit('voice_call_decline', { callerId: caller.id, callId, reason: 'User is busy in another call' });
-      return;
+      if (this.activeCall.callId === callId) {
+        return; // Already handling this exact call
+      }
+      // Clean up previous call state cleanly without sending decline
+      this.cleanupCall();
     }
 
     this.activeCall = {
@@ -349,7 +377,8 @@ const CallManager = {
       partnerAvatar: caller.avatar_url,
       partnerColor: caller.avatar_color || '#6366f1',
       isCaller: false,
-      startTime: null
+      startTime: null,
+      ringTimeout: null
     };
 
     const modal = document.getElementById('incoming-call-modal');
@@ -373,8 +402,14 @@ const CallManager = {
 
     if (!this.activeCall) return;
 
+    if (this.activeCall.ringTimeout) {
+      clearTimeout(this.activeCall.ringTimeout);
+      this.activeCall.ringTimeout = null;
+    }
+
     try {
       await this.acquireLocalAudio();
+      this.getOrCreateAudioElement('direct');
     } catch (err) {
       console.error('Microphone error on accept:', err);
       App.showToast('Microphone access is required to answer');
@@ -441,7 +476,7 @@ const CallManager = {
         if (this.activeCall && !this.activeCall.startTime) {
           this.startCallTimer();
         }
-      } else if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+      } else if (pc.iceConnectionState === 'failed') {
         this.updateCallStatus('Reconnecting...');
       }
     };
@@ -452,12 +487,26 @@ const CallManager = {
         if (this.activeCall && !this.activeCall.startTime) {
           this.startCallTimer();
         }
-      } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+      } else if (pc.connectionState === 'failed') {
         this.updateCallStatus('Reconnecting...');
       }
     };
 
     return pc;
+  },
+
+  async addCandidateSafely(pc, candidateData) {
+    if (!pc || !candidateData) return;
+    try {
+      if (typeof candidateData === 'object' && candidateData.candidate !== undefined) {
+        if (!candidateData.candidate) return; // skip end of candidates marker
+        await pc.addIceCandidate(new RTCIceCandidate(candidateData));
+      } else {
+        await pc.addIceCandidate(candidateData);
+      }
+    } catch (err) {
+      console.warn('addIceCandidate error:', err.message);
+    }
   },
 
   declineCall() {
@@ -597,15 +646,27 @@ const CallManager = {
   async acquireLocalAudio() {
     this.stopLocalAudio();
 
-    this.localStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true
-      },
-      video: false
-    });
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      const legacyGUM = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+      if (legacyGUM) {
+        this.localStream = await new Promise((resolve, reject) => {
+          legacyGUM.call(navigator, { audio: true, video: false }, resolve, reject);
+        });
+      } else {
+        throw new Error('Microphone requires HTTPS or localhost');
+      }
+    } else {
+      this.localStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        },
+        video: false
+      });
+    }
 
+    this.isMuted = false;
     this.updateControlsUI();
   },
 
@@ -625,18 +686,20 @@ const CallManager = {
     }
 
     this.updateControlsUI();
-    App.showToast(this.isMuted ? 'Muted 🔇' : 'Unmuted 🎤');
+    App.showToast(this.isMuted ? 'Muted' : 'Unmuted');
   },
 
   updateControlsUI() {
     const barMute = document.getElementById('btn-call-mute');
     if (barMute) {
       barMute.classList.toggle('active-control-danger', this.isMuted);
-      barMute.innerHTML = this.isMuted ? '<span>🔇</span>' : '<span>🎤</span>';
+      barMute.innerHTML = this.isMuted
+        ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>'
+        : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>';
     }
   },
 
-  attachRemoteAudio(id, stream) {
+  getOrCreateAudioElement(id) {
     let audio = this.audioElements.get(id);
     if (!audio) {
       audio = document.createElement('audio');
@@ -652,8 +715,14 @@ const CallManager = {
       document.body.appendChild(audio);
       this.audioElements.set(id, audio);
     }
+    return audio;
+  },
 
-    audio.srcObject = stream;
+  attachRemoteAudio(id, stream) {
+    const audio = this.getOrCreateAudioElement(id);
+    if (audio.srcObject !== stream) {
+      audio.srcObject = stream;
+    }
     const playPromise = audio.play();
     if (playPromise !== undefined) {
       playPromise.catch((e) => {
@@ -707,7 +776,7 @@ const CallManager = {
     const btnJoinVoice = document.getElementById('btn-header-join-voice');
     if (btnJoinVoice) {
       btnJoinVoice.classList.toggle('active', isInCall);
-      btnJoinVoice.textContent = isInCall ? 'Leave Room' : 'Join Voice';
+      btnJoinVoice.textContent = isInCall ? 'Leave Room' : 'Voice';
     }
   },
 
@@ -741,16 +810,16 @@ const CallManager = {
   async flushPendingCandidates(id, pc) {
     const queue = this.pendingCandidates.get(id) || [];
     for (const cand of queue) {
-      try {
-        await pc.addIceCandidate(new RTCIceCandidate(cand));
-      } catch (err) {
-        console.warn('flush candidate error:', err);
-      }
+      await this.addCandidateSafely(pc, cand);
     }
     this.pendingCandidates.delete(id);
   },
 
   cleanupCall() {
+    this.isInitiating = false;
+    if (this.activeCall?.ringTimeout) {
+      clearTimeout(this.activeCall.ringTimeout);
+    }
     clearInterval(this.activeCall?.timerInterval);
 
     this.peerConnections.forEach(pc => {

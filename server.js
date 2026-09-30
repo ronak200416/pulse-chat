@@ -1042,6 +1042,22 @@ io.on('connection', (socket) => {
       }
     }
 
+    // Clean up active direct calls if this user disconnected
+    if (uId) {
+      for (const [callId, callInfo] of activeDirectCalls.entries()) {
+        if (callInfo.callerId === uId || callInfo.recipientId === uId) {
+          activeDirectCalls.delete(callId);
+          const otherUserId = callInfo.callerId === uId ? callInfo.recipientId : callInfo.callerId;
+          const otherSockets = userSocketMap.get(otherUserId);
+          if (otherSockets) {
+            for (const sId of otherSockets) {
+              io.to(sId).emit('voice_call_ended', { endedBy: uId, callId });
+            }
+          }
+        }
+      }
+    }
+
     if (uId && userSocketMap.has(uId)) {
       const userSockets = userSocketMap.get(uId);
       userSockets.delete(socket.id);
