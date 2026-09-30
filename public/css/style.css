@@ -2333,15 +2333,6 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
     display: none;
   }
 
-  #btn-header-delete-group span,
-  #btn-header-leave-group span {
-    display: none;
-  }
-  #btn-header-delete-group,
-  #btn-header-leave-group {
-    padding: 6px 8px;
-    font-size: 0.85rem;
-  }
 
   .messages-container {
     padding: 10px 8px;
@@ -3713,36 +3704,35 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   transform: scale(0.92);
 }
 
-.btn-voice-header {
-  background: rgba(99, 102, 241, 0.15);
-  border: 1px solid rgba(99, 102, 241, 0.35);
-  color: #a5b4fc;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: var(--radius-full);
-  font-weight: 600;
-  font-size: 0.82rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
+.btn-header-voice,
+.btn-header-delete,
+.btn-header-leave {
+  background: transparent !important;
+  border: none !important;
+  color: var(--text-secondary) !important;
+  box-shadow: none !important;
 }
-.btn-voice-header:hover {
-  background: rgba(99, 102, 241, 0.3);
-  color: #ffffff;
-  border-color: rgba(99, 102, 241, 0.6);
-  transform: translateY(-1px);
+
+.btn-header-voice:hover,
+.btn-header-leave:hover {
+  color: var(--text-primary) !important;
+  background: var(--bg-hover) !important;
 }
-.btn-voice-header.active-in-voice {
-  background: rgba(239, 68, 68, 0.2) !important;
-  border-color: rgba(239, 68, 68, 0.5) !important;
-  color: #f87171 !important;
+
+.btn-header-delete:hover {
+  color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.12) !important;
+}
+
+.btn-header-voice.active-in-voice {
+  color: #10b981 !important;
+  background: rgba(16, 185, 129, 0.15) !important;
   animation: pulse-voice-active 2s infinite;
 }
 
 @keyframes pulse-voice-active {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-  50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
 }
 
 /* Quick Action Buttons on Member Item */
