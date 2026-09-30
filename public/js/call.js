@@ -1,4 +1,4 @@
-// Pulse Chat WebRTC Voice Calling Engine
+// Pulse Chat WebRTC Voice Calling Engine (Cross-Browser: Chrome, Edge, Brave, Safari, Firefox)
 const CallManager = {
   activeCall: null, // { type: 'direct'|'group', callId, partnerId, partnerName, partnerAvatar, partnerColor, channelId, channelName, startTime, timerInterval, ringTimeout, isCaller }
   localStream: null,
@@ -9,7 +9,7 @@ const CallManager = {
   isMuted: false,
   isInitiating: false,
 
-  // High-performance public STUN servers for instant candidate gathering across all devices & networks
+  // High-performance public STUN servers for instant candidate gathering across all browsers & networks
   rtcConfig: {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
@@ -20,7 +20,9 @@ const CallManager = {
       { urls: 'stun:stun.cloudflare.com:3478' },
       { urls: 'stun:global.stun.twilio.com:3478' }
     ],
-    iceCandidatePoolSize: 10
+    iceCandidatePoolSize: 10,
+    bundlePolicy: 'max-bundle',
+    rtcpMuxPolicy: 'require'
   },
 
   init() {
@@ -31,6 +33,10 @@ const CallManager = {
 
   setupGlobalAudioUnlock() {
     const unlock = () => {
+      // Resume AudioContext for Chrome
+      if (App && App.audioCtx && App.audioCtx.state === 'suspended') {
+        App.audioCtx.resume().catch(() => {});
+      }
       this.audioElements.forEach(audio => {
         if (audio && audio.srcObject) {
           audio.play().catch(() => {});
@@ -45,7 +51,7 @@ const CallManager = {
   bindSocketEvents() {
     if (!App || !App.socket) return;
 
-    // Clean unbind any previous listeners to prevent multiple execution
+    // Clean unbind any previous listeners to prevent duplicate execution
     App.socket.off('incoming_voice_call');
     App.socket.off('voice_call_signal');
     App.socket.off('voice_call_accepted');
@@ -124,10 +130,7 @@ const CallManager = {
           pc = this.createDirectPeerConnection(this.activeCall.partnerId, callId);
         }
 
-        const offer = await pc.createOffer({
-          offerToReceiveAudio: true,
-          offerToReceiveVideo: false
-        });
+        const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
 
         App.socket.emit('voice_call_signal', {
@@ -292,6 +295,11 @@ const CallManager = {
   async startDirectCall(partnerId, partnerName, partnerAvatar, partnerColor) {
     if (this.isInitiating) return;
 
+    // Unlock Chrome AudioContext on this user gesture
+    if (App && App.audioCtx && App.audioCtx.state === 'suspended') {
+      App.audioCtx.resume().catch(() => {});
+    }
+
     // If already in a call, cleanly cleanup previous state before starting
     if (this.activeCall) {
       this.cleanupCall();
@@ -405,6 +413,11 @@ const CallManager = {
     if (this.activeCall.ringTimeout) {
       clearTimeout(this.activeCall.ringTimeout);
       this.activeCall.ringTimeout = null;
+    }
+
+    // Unlock Chrome AudioContext on user gesture
+    if (App && App.audioCtx && App.audioCtx.state === 'suspended') {
+      App.audioCtx.resume().catch(() => {});
     }
 
     try {
@@ -626,7 +639,7 @@ const CallManager = {
 
     if (isInitiator) {
       try {
-        const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
+        const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         App.socket.emit('group_voice_signal', {
           targetSocketId,
@@ -646,24 +659,35 @@ const CallManager = {
   async acquireLocalAudio() {
     this.stopLocalAudio();
 
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      const legacyGUM = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
-      if (legacyGUM) {
-        this.localStream = await new Promise((resolve, reject) => {
-          legacyGUM.call(navigator, { audio: true, video: false }, resolve, reject);
+    const audioConstraints = {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true
+    };
+
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        this.localStream = await navigator.mediaDevices.getUserMedia({
+          audio: audioConstraints,
+          video: false
         });
       } else {
-        throw new Error('Microphone requires HTTPS or localhost');
+        throw new Error('No mediaDevices');
       }
-    } else {
-      this.localStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        },
-        video: false
-      });
+    } catch (err) {
+      // Fallback to basic audio: true if complex constraints fail in Chrome
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      } else {
+        const legacyGUM = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+        if (legacyGUM) {
+          this.localStream = await new Promise((resolve, reject) => {
+            legacyGUM.call(navigator, { audio: true, video: false }, resolve, reject);
+          });
+        } else {
+          throw new Error('Microphone access requires HTTPS or localhost');
+        }
+      }
     }
 
     this.isMuted = false;
@@ -700,6 +724,13 @@ const CallManager = {
   },
 
   getOrCreateAudioElement(id) {
+    if (id === 'direct') {
+      const staticAudio = document.getElementById('webrtc-remote-audio-direct');
+      if (staticAudio) {
+        this.audioElements.set('direct', staticAudio);
+        return staticAudio;
+      }
+    }
     let audio = this.audioElements.get(id);
     if (!audio) {
       audio = document.createElement('audio');
@@ -725,8 +756,19 @@ const CallManager = {
     }
     const playPromise = audio.play();
     if (playPromise !== undefined) {
-      playPromise.catch((e) => {
-        console.warn('Auto-play blocked, will resume on interaction:', e);
+      playPromise.catch((err) => {
+        console.warn('HTML Audio play error, trying Web Audio fallback:', err);
+        try {
+          if (App && App.audioCtx) {
+            if (App.audioCtx.state === 'suspended') {
+              App.audioCtx.resume();
+            }
+            const src = App.audioCtx.createMediaStreamSource(stream);
+            src.connect(App.audioCtx.destination);
+          }
+        } catch (e) {
+          console.warn('Web Audio direct stream error:', e);
+        }
       });
     }
   },
@@ -830,7 +872,9 @@ const CallManager = {
 
     this.audioElements.forEach(audio => {
       audio.srcObject = null;
-      audio.remove();
+      if (audio.id !== 'webrtc-remote-audio-direct') {
+        audio.remove();
+      }
     });
     this.audioElements.clear();
 
