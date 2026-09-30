@@ -1109,10 +1109,16 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
 .messages-container {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px;
   display: flex;
   flex-direction: column;
   position: relative;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  transform: translateZ(0);
+  will-change: scroll-position;
 }
 
 .chat-welcome-banner {
@@ -1158,7 +1164,9 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
 .messages-feed {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
+  contain: layout style;
+  transform: translateZ(0);
 }
 
 /* Date Separator */
@@ -1190,7 +1198,9 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus {
   border-radius: var(--radius-md);
   position: relative;
   transition: background 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  contain: layout style;
+  contain: layout style paint;
+  content-visibility: auto;
+  contain-intrinsic-size: 0 60px;
   transform: translateZ(0);
 }
 .message-item:hover {

@@ -23,7 +23,6 @@ const Auth = {
     this.regDisplayNameInput = document.getElementById('reg-display-name');
     this.usernameStatusEl = document.getElementById('username-availability-status');
     this.regColorPicker = document.getElementById('reg-color-picker');
-    this.loginColorPicker = document.getElementById('login-color-picker');
     this.selectedRegColor = '#6366f1';
 
     // Live Preview Elements
@@ -132,19 +131,7 @@ const Auth = {
       this.regDisplayNameInput.addEventListener('input', () => this.updateLivePreview());
     }
 
-    // Login color dot picker
-    if (this.loginColorPicker) {
-      const loginColorName = document.getElementById('login-color-name');
-      this.loginColorPicker.addEventListener('click', (e) => {
-        const circle = e.target.closest('.auth-color-circle');
-        if (circle) {
-          this.loginColorPicker.querySelectorAll('.auth-color-circle').forEach(c => c.classList.remove('active'));
-          circle.classList.add('active');
-          const colorName = circle.getAttribute('data-name');
-          if (loginColorName && colorName) loginColorName.textContent = colorName;
-        }
-      });
-    }
+
 
     // Register color pills bar picker
     if (this.regColorPicker) {

@@ -124,15 +124,24 @@ const Chat = {
       }
     });
 
-    // Scroll Detection
+    // High-performance 60fps Scroll Detection with passive listener & RAF throttling
     if (this.messagesContainer) {
+      let ticking = false;
       this.messagesContainer.addEventListener('scroll', () => {
-        const distFromBottom = this.messagesContainer.scrollHeight - this.messagesContainer.scrollTop - this.messagesContainer.clientHeight;
-        this.isAtBottom = distFromBottom < 60;
-        if (this.btnScrollBottom) {
-          this.btnScrollBottom.style.display = this.isAtBottom ? 'none' : 'flex';
+        if (!ticking) {
+          window.requestAnimationFrame(() => {
+            if (this.messagesContainer) {
+              const distFromBottom = this.messagesContainer.scrollHeight - this.messagesContainer.scrollTop - this.messagesContainer.clientHeight;
+              this.isAtBottom = distFromBottom < 60;
+              if (this.btnScrollBottom) {
+                this.btnScrollBottom.style.display = this.isAtBottom ? 'none' : 'flex';
+              }
+            }
+            ticking = false;
+          });
+          ticking = true;
         }
-      });
+      }, { passive: true });
     }
 
     if (this.btnScrollBottom) {
